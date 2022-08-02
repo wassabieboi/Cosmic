@@ -1,7 +1,10 @@
 ﻿/logs/**
 .idea/
 *.iml
+*.ipr
+*.iws
 /target
+.gradle
 
 # build files
 /build/
