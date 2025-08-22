@@ -22,6 +22,8 @@ public class ByteBufInPacket implements InPacket {
     public byte readByte() {
         return byteBuf.readByte();
     }
+    @Override
+    public short readUnsignedByte() { return byteBuf.readUnsignedByte(); }
 
     @Override
     public short readShort() {
@@ -78,6 +80,11 @@ public class ByteBufInPacket implements InPacket {
     @Override
     public int getPosition() {
         return byteBuf.readerIndex();
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        return o instanceof ByteBufInPacket other && byteBuf.equals(other.byteBuf);
     }
 
     @Override

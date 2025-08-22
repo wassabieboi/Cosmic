@@ -27,8 +27,6 @@ import config.YamlConfig;
 import net.packet.Packet;
 import net.server.PlayerStorage;
 import net.server.Server;
-import net.server.audit.locks.MonitoredLockType;
-import net.server.audit.locks.factory.MonitoredReentrantLockFactory;
 import net.server.channel.Channel;
 import net.server.coordinator.matchchecker.MatchCheckerCoordinator;
 import net.server.coordinator.world.InviteCoordinator;
@@ -36,6 +34,7 @@ import net.server.coordinator.world.InviteCoordinator.InviteResult;
 import net.server.coordinator.world.InviteCoordinator.InviteType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import service.NoteService;
 import tools.DatabaseConnection;
 import tools.PacketCreator;
 
@@ -43,8 +42,15 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 public class Guild {
     private static final Logger log = LoggerFactory.getLogger(Guild.class);
@@ -54,7 +60,7 @@ public class Guild {
     }
 
     private final List<GuildCharacter> members;
-    private final Lock membersLock = MonitoredReentrantLockFactory.createLock(MonitoredLockType.GUILD, true);
+    private final Lock membersLock = new ReentrantLock(true);
 
     private final String[] rankTitles = new String[5]; // 1 = master, 2 = jr, 5 = lowest member
     private String name, notice;
@@ -498,7 +504,7 @@ public class Guild {
         }
     }
 
-    public void expelMember(GuildCharacter initiator, String name, int cid) {
+    public void expelMember(GuildCharacter initiator, String name, int cid, NoteService noteService) {
         membersLock.lock();
         try {
             java.util.Iterator<GuildCharacter> itr = members.iterator();
@@ -513,16 +519,7 @@ public class Guild {
                         if (mgc.isOnline()) {
                             Server.getInstance().getWorld(mgc.getWorld()).setGuildAndRank(cid, 0, 5);
                         } else {
-                            try (Connection con = DatabaseConnection.getConnection();
-                                 PreparedStatement ps = con.prepareStatement("INSERT INTO notes (`to`, `from`, `message`, `timestamp`) VALUES (?, ?, ?, ?)")) {
-                                ps.setString(1, mgc.getName());
-                                ps.setString(2, initiator.getName());
-                                ps.setString(3, "You have been expelled from the guild.");
-                                ps.setLong(4, System.currentTimeMillis());
-                                ps.executeUpdate();
-                            } catch (SQLException e) {
-                                log.error("expelMember - Guild", e);
-                            }
+                            noteService.sendNormal("You have been expelled from the guild.", initiator.getName(), mgc.getName());
                             Server.getInstance().getWorld(mgc.getWorld()).setOfflineGuildStatus((short) 0, (byte) 5, cid);
                         }
                     } catch (Exception re) {
@@ -604,11 +601,10 @@ public class Guild {
 
     @Override
     public boolean equals(Object other) {
-        if (!(other instanceof GuildCharacter)) {
-            return false;
+        if (other instanceof GuildCharacter o) {
+            return (o.getId() == id && o.getName().equals(name));
         }
-        GuildCharacter o = (GuildCharacter) other;
-        return (o.getId() == id && o.getName().equals(name));
+        return false;
     }
 
     @Override

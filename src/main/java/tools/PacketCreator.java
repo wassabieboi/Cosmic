@@ -20,11 +20,29 @@
  */
 package tools;
 
+import client.BuddylistEntry;
+import client.BuffStat;
 import client.Character;
-import client.*;
 import client.Character.SkillEntry;
-import client.inventory.*;
+import client.Client;
+import client.Disease;
+import client.FamilyEntitlement;
+import client.FamilyEntry;
+import client.MonsterBook;
+import client.Mount;
+import client.QuestStatus;
+import client.Ring;
+import client.Skill;
+import client.SkillMacro;
+import client.Stat;
+import client.inventory.Equip;
 import client.inventory.Equip.ScrollResult;
+import client.inventory.Inventory;
+import client.inventory.InventoryType;
+import client.inventory.Item;
+import client.inventory.ItemFactory;
+import client.inventory.ModifyInventory;
+import client.inventory.Pet;
 import client.keybind.KeyBinding;
 import client.keybind.QuickslotBinding;
 import client.newyear.NewYearCardRecord;
@@ -38,6 +56,7 @@ import constants.id.MapId;
 import constants.id.NpcId;
 import constants.inventory.ItemConstants;
 import constants.skills.Buccaneer;
+import constants.skills.ChiefBandit;
 import constants.skills.Corsair;
 import constants.skills.ThunderBreaker;
 import net.encryption.InitializationVector;
@@ -49,8 +68,9 @@ import net.packet.Packet;
 import net.server.PlayerCoolDownValueHolder;
 import net.server.Server;
 import net.server.channel.Channel;
+import net.server.channel.handlers.AbstractDealDamageHandler.AttackTarget;
 import net.server.channel.handlers.PlayerInteractionHandler;
-import net.server.channel.handlers.SummonDamageHandler.SummonAttackEntry;
+import net.server.channel.handlers.SummonDamageHandler.SummonAttackTarget;
 import net.server.channel.handlers.WhisperHandler;
 import net.server.guild.Alliance;
 import net.server.guild.Guild;
@@ -59,26 +79,49 @@ import net.server.world.Party;
 import net.server.world.PartyCharacter;
 import net.server.world.PartyOperation;
 import net.server.world.World;
+import server.CashShop;
 import server.CashShop.CashItem;
 import server.CashShop.CashItemFactory;
 import server.CashShop.SpecialCashItem;
-import server.*;
+import server.DueyPackage;
+import server.ItemInformationProvider;
+import server.MTSItemInfo;
+import server.ShopItem;
+import server.Trade;
 import server.events.gm.Snowball;
 import server.life.MobSkill;
+import server.life.MobSkillId;
 import server.life.Monster;
 import server.life.NPC;
 import server.life.PlayerNPC;
-import server.maps.*;
+import server.maps.AbstractMapObject;
+import server.maps.Door;
+import server.maps.DoorObject;
+import server.maps.Dragon;
+import server.maps.HiredMerchant;
+import server.maps.MapItem;
+import server.maps.MapleMap;
+import server.maps.MiniGame;
 import server.maps.MiniGame.MiniGameResult;
+import server.maps.Mist;
+import server.maps.PlayerShop;
+import server.maps.PlayerShopItem;
+import server.maps.Reactor;
+import server.maps.Summon;
 import server.movement.LifeMovementFragment;
 
 import java.awt.*;
 import java.net.InetAddress;
-import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.*;
+import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
+import java.util.TimeZone;
 import java.util.stream.Collectors;
 
 /**
@@ -104,6 +147,11 @@ public class PacketCreator {
         }
 
         return utcTimestamp * 10000 + FT_UT_OFFSET;
+    }
+
+    private static void writeMobSkillId(OutPacket packet, MobSkillId msId) {
+        packet.writeShort(msId.type().getId());
+        packet.writeShort(msId.level());
     }
 
     public static Packet showHpHealed(int cid, int amount) {
@@ -382,13 +430,13 @@ public class PacketCreator {
             Pet pet = item.getPet();
             p.writeFixedString(StringUtil.getRightPaddedStr(pet.getName(), '\0', 13));
             p.writeByte(pet.getLevel());
-            p.writeShort(pet.getCloseness());
+            p.writeShort(pet.getTameness());
             p.writeByte(pet.getFullness());
             addExpirationTime(p, item.getExpiration());
-            p.writeInt(pet.getPetFlag());  /* pet flags noticed by lrenex & Spoon */
-
-            p.writeBytes(new byte[]{(byte) 0x50, (byte) 0x46}); //wonder what this is
-            p.writeInt(0);
+            p.writeShort(pet.getPetAttribute()); // PetAttribute noticed by lrenex & Spoon
+            p.writeShort(0); // PetSkill
+            p.writeInt(18000); // RemainLife
+            p.writeShort(0); // attribute
             return;
         }
         if (equip == null) {
@@ -1410,8 +1458,7 @@ public class PacketCreator {
 
             MobSkill mobSkill = mse.getMobSkill();
             if (mobSkill != null) {
-                p.writeShort(mobSkill.getSkillId());
-                p.writeShort(mobSkill.getSkillLevel());
+                writeMobSkillId(p, mobSkill.getId());
 
                 switch (s.getKey()) {
                     case WEAPON_REFLECT -> pCounter = mobSkill.getX();
@@ -1769,7 +1816,8 @@ public class PacketCreator {
         return p;
     }
 
-    public static Packet dropItemFromMapObject(Character player, MapItem drop, Point dropfrom, Point dropto, byte mod) {
+    public static Packet dropItemFromMapObject(Character player, MapItem drop, Point dropfrom, Point dropto, byte mod,
+                                               short delay) {
         int dropType = drop.getDropType();
         if (drop.hasClientsideOwnership(player) && dropType < 3) {
             dropType = 2;
@@ -1787,7 +1835,7 @@ public class PacketCreator {
 
         if (mod != 2) {
             p.writePos(dropfrom);
-            p.writeShort(0);//Fh?
+            p.writeShort(delay);
         }
         if (drop.getMeso() == 0) {
             addExpirationTime(p, drop.getItem().getExpiration());
@@ -2257,18 +2305,18 @@ public class PacketCreator {
         return p;
     }
 
-    public static Packet summonAttack(int cid, int summonOid, byte direction, List<SummonAttackEntry> allDamage) {
+    public static Packet summonAttack(int cid, int summonOid, byte direction, List<SummonAttackTarget> targets) {
         OutPacket p = OutPacket.create(SendOpcode.SUMMON_ATTACK);
         //b2 00 29 f7 00 00 9a a3 04 00 c8 04 01 94 a3 04 00 06 ff 2b 00
         p.writeInt(cid);
         p.writeInt(summonOid);
         p.writeByte(0);     // char level
         p.writeByte(direction);
-        p.writeByte(allDamage.size());
-        for (SummonAttackEntry attackEntry : allDamage) {
-            p.writeInt(attackEntry.getMonsterOid()); // oid
+        p.writeByte(targets.size());
+        for (SummonAttackTarget target : targets) {
+            p.writeInt(target.monsterOid()); // oid
             p.writeByte(6); // who knows
-            p.writeInt(attackEntry.getDamage()); // damage
+            p.writeInt(target.damage()); // damage
         }
 
         return p;
@@ -2293,29 +2341,40 @@ public class PacketCreator {
         }
         */
 
-    public static Packet closeRangeAttack(Character chr, int skill, int skilllevel, int stance, int numAttackedAndDamage, Map<Integer, List<Integer>> damage, int speed, int direction, int display) {
+    public static Packet closeRangeAttack(Character chr, int skill, int skilllevel, int stance,
+                                          int numAttackedAndDamage, Map<Integer, AttackTarget> targets, int speed,
+                                          int direction, int display) {
         final OutPacket p = OutPacket.create(SendOpcode.CLOSE_RANGE_ATTACK);
-        addAttackBody(p, chr, skill, skilllevel, stance, numAttackedAndDamage, 0, damage, speed, direction, display);
+        addAttackBody(p, chr, skill, skilllevel, stance, numAttackedAndDamage, 0, targets, speed, direction,
+                display);
         return p;
     }
 
-    public static Packet rangedAttack(Character chr, int skill, int skilllevel, int stance, int numAttackedAndDamage, int projectile, Map<Integer, List<Integer>> damage, int speed, int direction, int display) {
+    public static Packet rangedAttack(Character chr, int skill, int skilllevel, int stance, int numAttackedAndDamage,
+                                      int projectile, Map<Integer, AttackTarget> targets, int speed, int direction,
+                                      int display) {
         final OutPacket p = OutPacket.create(SendOpcode.RANGED_ATTACK);
-        addAttackBody(p, chr, skill, skilllevel, stance, numAttackedAndDamage, projectile, damage, speed, direction, display);
+        addAttackBody(p, chr, skill, skilllevel, stance, numAttackedAndDamage, projectile, targets, speed, direction,
+                display);
         p.writeInt(0);
         return p;
     }
 
-    public static Packet magicAttack(Character chr, int skill, int skilllevel, int stance, int numAttackedAndDamage, Map<Integer, List<Integer>> damage, int charge, int speed, int direction, int display) {
+    public static Packet magicAttack(Character chr, int skill, int skilllevel, int stance, int numAttackedAndDamage,
+                                     Map<Integer, AttackTarget> targets, int charge, int speed, int direction,
+                                     int display) {
         final OutPacket p = OutPacket.create(SendOpcode.MAGIC_ATTACK);
-        addAttackBody(p, chr, skill, skilllevel, stance, numAttackedAndDamage, 0, damage, speed, direction, display);
+        addAttackBody(p, chr, skill, skilllevel, stance, numAttackedAndDamage, 0, targets, speed, direction,
+                display);
         if (charge != -1) {
             p.writeInt(charge);
         }
         return p;
     }
 
-    private static void addAttackBody(OutPacket p, Character chr, int skill, int skilllevel, int stance, int numAttackedAndDamage, int projectile, Map<Integer, List<Integer>> damage, int speed, int direction, int display) {
+    private static void addAttackBody(OutPacket p, Character chr, int skill, int skilllevel, int stance,
+                                      int numAttackedAndDamage, int projectile, Map<Integer, AttackTarget> targets,
+                                      int speed, int direction, int display) {
         p.writeInt(chr.getId());
         p.writeByte(numAttackedAndDamage);
         p.writeByte(0x5B);//?
@@ -2329,16 +2388,16 @@ public class PacketCreator {
         p.writeByte(speed);
         p.writeByte(0x0A);
         p.writeInt(projectile);
-        for (Integer oned : damage.keySet()) {
-            List<Integer> onedList = damage.get(oned);
-            if (onedList != null) {
-                p.writeInt(oned);
+        for (Map.Entry<Integer, AttackTarget> target : targets.entrySet()) {
+            AttackTarget value = target.getValue();
+            if (value != null) {
+                p.writeInt(target.getKey());
                 p.writeByte(0x0);
-                if (skill == 4211006) {
-                    p.writeByte(onedList.size());
+                if (skill == ChiefBandit.MESO_EXPLOSION) {
+                    p.writeByte(value.damageLines().size());
                 }
-                for (Integer eachd : onedList) {
-                    p.writeInt(eachd);
+                for (Integer damageLine : value.damageLines()) {
+                    p.writeInt(damageLine);
                 }
             }
         }
@@ -2549,6 +2608,14 @@ public class PacketCreator {
         return p;
     }
 
+    public static Packet removeExplodedMesoFromMap(int mapObjectId, short delay) {
+        OutPacket p = OutPacket.create(SendOpcode.REMOVE_ITEM_FROM_MAP);
+        p.writeByte(4);
+        p.writeInt(mapObjectId);
+        p.writeShort(delay);
+        return p;
+    }
+
     public static Packet updateCharLook(Client target, Character chr) {
         OutPacket p = OutPacket.create(SendOpcode.UPDATE_CHAR_LOOK);
         p.writeInt(chr.getId());
@@ -2705,7 +2772,7 @@ public class PacketCreator {
                 p.writeInt(pets[i].getItemId()); // petid
                 p.writeString(pets[i].getName());
                 p.writeByte(pets[i].getLevel()); // pet level
-                p.writeShort(pets[i].getCloseness()); // pet closeness
+                p.writeShort(pets[i].getTameness()); // pet tameness
                 p.writeByte(pets[i].getFullness()); // pet fullness
                 p.writeShort(0);
                 p.writeInt(inv != null ? inv.getItemId() : 0);
@@ -2917,8 +2984,7 @@ public class PacketCreator {
         writeLongMaskD(p, statups);
         for (Pair<Disease, Integer> statup : statups) {
             p.writeShort(statup.getRight().shortValue());
-            p.writeShort(skill.getSkillId());
-            p.writeShort(skill.getSkillLevel());
+            writeMobSkillId(p, skill.getId());
             p.writeInt((int) skill.getDuration());
         }
         p.writeShort(0); // ??? wk charges have 600 here o.o
@@ -2936,8 +3002,7 @@ public class PacketCreator {
             if (statup.getLeft() == Disease.POISON) {
                 p.writeShort(statup.getRight().shortValue());
             }
-            p.writeShort(skill.getSkillId());
-            p.writeShort(skill.getSkillLevel());
+            writeMobSkillId(p, skill.getId());
         }
         p.writeShort(0); // same as give_buff
         p.writeShort(900);//Delay
@@ -3051,8 +3116,7 @@ public class PacketCreator {
             if (statup.getLeft() == Disease.POISON) {
                 p.writeShort(statup.getRight().shortValue());
             }
-            p.writeShort(skill.getSkillId());
-            p.writeShort(skill.getSkillLevel());
+            writeMobSkillId(p, skill.getId());
         }
         p.writeShort(0); // same as give_buff
         p.writeShort(900);//Delay
@@ -3932,8 +3996,7 @@ public class PacketCreator {
         for (Map.Entry<MonsterStatus, Integer> stat : stati.entrySet()) {
             p.writeShort(stat.getValue());
             if (mse.isMonsterSkill()) {
-                p.writeShort(mse.getMobSkill().getSkillId());
-                p.writeShort(mse.getMobSkill().getSkillLevel());
+                writeMobSkillId(p, mse.getMobSkill().getId());
             } else {
                 p.writeInt(mse.getSkill().getId());
             }
@@ -3984,11 +4047,15 @@ public class PacketCreator {
         return p;
     }
 
-    public static Packet spawnMist(int objId, int ownerChrId, int skill, int level, Mist mist) {
+    public static Packet spawnMobMist(int objId, int ownerMobId, MobSkillId msId, Mist mist) {
+        return spawnMist(objId, ownerMobId, msId.type().getId(), msId.level(), mist);
+    }
+
+    public static Packet spawnMist(int objId, int ownerId, int skill, int level, Mist mist) {
         OutPacket p = OutPacket.create(SendOpcode.SPAWN_MIST);
         p.writeInt(objId);
         p.writeInt(mist.isMobMist() ? 0 : mist.isPoisonMist() ? 1 : mist.isRecoveryMist() ? 4 : 2); // mob mist = 0, player poison = 1, smokescreen = 2, unknown = 3, recovery = 4
-        p.writeInt(ownerChrId);
+        p.writeInt(ownerId);
         p.writeInt(skill);
         p.writeByte(level);
         p.writeShort(mist.getSkillDelay()); // Skill delay
@@ -5403,12 +5470,6 @@ public class PacketCreator {
         return p;
     }
 
-    public static Packet noteSendMsg() {
-        OutPacket p = OutPacket.create(SendOpcode.MEMO_RESULT);
-        p.writeByte(4);
-        return p;
-    }
-
     /*
      *  0 = Player online, use whisper
      *  1 = Check player's name
@@ -5418,21 +5479,6 @@ public class PacketCreator {
         OutPacket p = OutPacket.create(SendOpcode.MEMO_RESULT);
         p.writeByte(5);
         p.writeByte(error);
-        return p;
-    }
-
-    public static Packet showNotes(ResultSet notes, int count) throws SQLException {
-        final OutPacket p = OutPacket.create(SendOpcode.MEMO_RESULT);
-        p.writeByte(3);
-        p.writeByte(count);
-        for (int i = 0; i < count; i++) {
-            p.writeInt(notes.getInt("id"));
-            p.writeString(notes.getString("from") + " ");//Stupid nexon forgot space lol
-            p.writeString(notes.getString("message"));
-            p.writeLong(getTime(notes.getLong("timestamp")));
-            p.writeByte(notes.getByte("fame"));//FAME :D
-            notes.next();
-        }
         return p;
     }
 
@@ -5557,8 +5603,8 @@ public class PacketCreator {
 
     public static Packet showMTSCash(Character chr) {
         final OutPacket p = OutPacket.create(SendOpcode.MTS_OPERATION2);
-        p.writeInt(chr.getCashShop().getCash(4));
-        p.writeInt(chr.getCashShop().getCash(2));
+        p.writeInt(chr.getCashShop().getCash(CashShop.NX_PREPAID));
+        p.writeInt(chr.getCashShop().getCash(CashShop.MAPLE_POINT));
         return p;
     }
 
@@ -5666,9 +5712,9 @@ public class PacketCreator {
 
     public static Packet showCash(Character mc) {
         final OutPacket p = OutPacket.create(SendOpcode.QUERY_CASH_RESULT);
-        p.writeInt(mc.getCashShop().getCash(1));
-        p.writeInt(mc.getCashShop().getCash(2));
-        p.writeInt(mc.getCashShop().getCash(4));
+        p.writeInt(mc.getCashShop().getCash(CashShop.NX_CREDIT));
+        p.writeInt(mc.getCashShop().getCash(CashShop.MAPLE_POINT));
+        p.writeInt(mc.getCashShop().getCash(CashShop.NX_PREPAID));
         return p;
     }
 
@@ -6157,23 +6203,6 @@ public class PacketCreator {
         return showSpecialEffect(15);
     }
 
-    public static Packet showBuybackEffect() {
-        final OutPacket p = OutPacket.create(SendOpcode.SHOW_ITEM_GAIN_INCHAT);
-        p.writeByte(11);
-        p.writeInt(0);
-
-        return p;
-    }
-
-    public static Packet showForeignBuybackEffect(int cid) {
-        final OutPacket p = OutPacket.create(SendOpcode.SHOW_FOREIGN_EFFECT);
-        p.writeInt(cid);
-        p.writeByte(11);
-        p.writeInt(0);
-
-        return p;
-    }
-
     /**
      * 0 = Levelup 6 = Exp did not drop (Safety Charms) 7 = Enter portal sound
      * 8 = Job change 9 = Quest complete 10 = Recovery 11 = Buff effect
@@ -6473,14 +6502,15 @@ public class PacketCreator {
         return p;
     }
 
-    public static Packet onCashGachaponOpenSuccess(int accountid, long sn, int remainingBoxes, Item item, int itemid, int nSelectedItemCount, boolean bJackpot) {
+    public static Packet onCashGachaponOpenSuccess(int accountid, long boxCashId, int remainingBoxes, Item reward,
+                                                   int rewardItemId, int rewardQuantity, boolean bJackpot) {
         OutPacket p = OutPacket.create(SendOpcode.CASHSHOP_CASH_ITEM_GACHAPON_RESULT);
         p.writeByte(0xE5);   // subopcode thanks to Ubaware
-        p.writeLong(sn);// sn of the box used
+        p.writeLong(boxCashId);
         p.writeInt(remainingBoxes);
-        addCashItemInformation(p, item, accountid);
-        p.writeInt(itemid);// the itemid of the liSN?
-        p.writeByte(nSelectedItemCount);// the total count now? o.O
+        addCashItemInformation(p, reward, accountid);
+        p.writeInt(rewardItemId);
+        p.writeByte(rewardQuantity); // nSelectedItemCount
         p.writeBool(bJackpot);// "CashGachaponJackpot"
         return p;
     }

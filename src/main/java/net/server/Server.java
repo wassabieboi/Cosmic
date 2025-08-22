@@ -30,28 +30,35 @@ import client.inventory.Item;
 import client.inventory.ItemFactory;
 import client.inventory.manipulator.CashIdGenerator;
 import client.newyear.NewYearCardRecord;
+import client.processor.npc.FredrickProcessor;
 import config.YamlConfig;
 import constants.game.GameConstants;
 import constants.inventory.ItemConstants;
 import constants.net.OpcodeConstants;
 import constants.net.ServerConstants;
+import database.DatabaseMigrations;
+import database.note.NoteDao;
+import net.ChannelDependencies;
+import net.PacketProcessor;
 import net.netty.LoginServer;
 import net.packet.Packet;
-import net.server.audit.ThreadTracker;
-import net.server.audit.locks.MonitoredLockType;
-import net.server.audit.locks.MonitoredReadLock;
-import net.server.audit.locks.MonitoredReentrantReadWriteLock;
-import net.server.audit.locks.MonitoredWriteLock;
-import net.server.audit.locks.factory.MonitoredReadLockFactory;
-import net.server.audit.locks.factory.MonitoredReentrantLockFactory;
-import net.server.audit.locks.factory.MonitoredWriteLockFactory;
 import net.server.channel.Channel;
 import net.server.coordinator.session.IpAddresses;
 import net.server.coordinator.session.SessionCoordinator;
 import net.server.guild.Alliance;
 import net.server.guild.Guild;
 import net.server.guild.GuildCharacter;
-import net.server.task.*;
+import net.server.task.BossLogTask;
+import net.server.task.CharacterDiseaseTask;
+import net.server.task.CouponTask;
+import net.server.task.DueyFredrickTask;
+import net.server.task.EventRecallCoordinatorTask;
+import net.server.task.InvitationTask;
+import net.server.task.LoginCoordinatorTask;
+import net.server.task.LoginStorageTask;
+import net.server.task.RankingCommandTask;
+import net.server.task.RankingLoginTask;
+import net.server.task.RespawnTask;
 import net.server.world.World;
 import org.apache.logging.log4j.LogManager;
 import org.slf4j.Logger;
@@ -61,8 +68,9 @@ import server.SkillbookInformationProvider;
 import server.ThreadManager;
 import server.TimerManager;
 import server.expeditions.ExpeditionBossLog;
-import server.life.PlayerNPCFactory;
+import server.life.PlayerNPC;
 import server.quest.Quest;
+import service.NoteService;
 import tools.DatabaseConnection;
 import tools.Pair;
 
@@ -72,15 +80,33 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Properties;
+import java.util.Set;
+import java.util.SortedMap;
+import java.util.TimeZone;
+import java.util.TreeMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
-import static java.util.concurrent.TimeUnit.*;
+import static java.util.concurrent.TimeUnit.DAYS;
+import static java.util.concurrent.TimeUnit.HOURS;
+import static java.util.concurrent.TimeUnit.MINUTES;
+import static java.util.concurrent.TimeUnit.SECONDS;
 
 public class Server {
     private static final Logger log = LoggerFactory.getLogger(Server.class);
@@ -96,6 +122,7 @@ public class Server {
     private static final Set<Integer> activeFly = new HashSet<>();
     private static final Map<Integer, Integer> couponRates = new HashMap<>(30);
     private static final List<Integer> activeCoupons = new LinkedList<>();
+    private static ChannelDependencies channelDependencies;
 
     private LoginServer loginServer;
     private final List<Map<Integer, String>> channels = new LinkedList<>();
@@ -117,16 +144,14 @@ public class Server {
 
     private final List<List<Pair<String, Integer>>> playerRanking = new LinkedList<>();
 
-    private final Lock srvLock = MonitoredReentrantLockFactory.createLock(MonitoredLockType.SERVER);
-    private final Lock disLock = MonitoredReentrantLockFactory.createLock(MonitoredLockType.SERVER_DISEASES);
+    private final Lock srvLock = new ReentrantLock();
+    private final Lock disLock = new ReentrantLock();
 
-    private final MonitoredReentrantReadWriteLock wldLock = new MonitoredReentrantReadWriteLock(MonitoredLockType.SERVER_WORLDS, true);
-    private final MonitoredReadLock wldRLock = MonitoredReadLockFactory.createLock(wldLock);
-    private final MonitoredWriteLock wldWLock = MonitoredWriteLockFactory.createLock(wldLock);
+    private final Lock wldRLock;
+    private final Lock wldWLock;
 
-    private final MonitoredReentrantReadWriteLock lgnLock = new MonitoredReentrantReadWriteLock(MonitoredLockType.SERVER_LOGIN, true);
-    private final MonitoredReadLock lgnRLock = MonitoredReadLockFactory.createLock(lgnLock);
-    private final MonitoredWriteLock lgnWLock = MonitoredWriteLockFactory.createLock(lgnLock);
+    private final Lock lgnRLock;
+    private final Lock lgnWLock;
 
     private final AtomicLong currentTime = new AtomicLong(0);
     private long serverCurrentTime = 0;
@@ -134,6 +159,16 @@ public class Server {
     private volatile boolean availableDeveloperRoom = false;
     private boolean online = false;
     public static long uptime = System.currentTimeMillis();
+
+    private Server() {
+        ReadWriteLock worldLock = new ReentrantReadWriteLock(true);
+        this.wldRLock = worldLock.readLock();
+        this.wldWLock = worldLock.writeLock();
+
+        ReadWriteLock loginLock = new ReentrantReadWriteLock(true);
+        this.lgnRLock = loginLock.readLock();
+        this.lgnWLock = loginLock.writeLock();
+    }
 
     public int getCurrentTimestamp() {
         return (int) (Server.getInstance().getCurrentTime() - Server.uptime);
@@ -835,18 +870,22 @@ public class Server {
             throw new IllegalStateException("Failed to initiate a connection to the database");
         }
 
+        DatabaseMigrations.runDatabaseMigrations();
+
+        channelDependencies = registerChannelDependencies();
+
         final ExecutorService initExecutor = Executors.newFixedThreadPool(10);
         // Run slow operations asynchronously to make startup faster
         final List<Future<?>> futures = new ArrayList<>();
-        futures.add(initExecutor.submit(() -> SkillFactory.loadAllSkills()));
-        futures.add(initExecutor.submit(() -> CashItemFactory.loadAllCashItems()));
-        futures.add(initExecutor.submit(() -> Quest.loadAllQuests()));
-        futures.add(initExecutor.submit(() -> SkillbookInformationProvider.loadAllSkillbookInformation()));
-        futures.add(initExecutor.submit(() -> PlayerNPCFactory.loadFactoryMetadata()));
+        futures.add(initExecutor.submit(SkillFactory::loadAllSkills));
+        futures.add(initExecutor.submit(CashItemFactory::loadAllCashItems));
+        futures.add(initExecutor.submit(Quest::loadAllQuests));
+        futures.add(initExecutor.submit(SkillbookInformationProvider::loadAllSkillbookInformation));
         initExecutor.shutdown();
 
         TimeZone.setDefault(TimeZone.getTimeZone(YamlConfig.config.server.TIMEZONE));
 
+        final int worldCount = Math.min(GameConstants.WORLD_NAMES.length, YamlConfig.config.server.WORLDS);
         try (Connection con = DatabaseConnection.getConnection()) {
             setAllLoggedOut(con);
             setAllMerchantsInactive(con);
@@ -857,21 +896,16 @@ public class Server {
             CashIdGenerator.loadExistentCashIdsFromDb(con);
             applyAllNameChanges(con); // -- name changes can be missed by INSTANT_NAME_CHANGE --
             applyAllWorldTransfers(con);
+            PlayerNPC.loadRunningRankData(con, worldCount);
         } catch (SQLException sqle) {
             log.error("Failed to run all startup-bound database tasks", sqle);
             throw new IllegalStateException(sqle);
         }
 
         ThreadManager.getInstance().start();
-        initializeTimelyTasks();    // aggregated method for timely tasks thanks to lxconan
-
-        if (YamlConfig.config.server.USE_THREAD_TRACKER) {
-            ThreadTracker.getInstance().registerThreadTrackerTask();
-        }
+        initializeTimelyTasks(channelDependencies);    // aggregated method for timely tasks thanks to lxconan
 
         try {
-            int worldCount = Math.min(GameConstants.WORLD_NAMES.length, YamlConfig.config.server.WORLDS);
-
             for (int i = 0; i < worldCount; i++) {
                 initWorld();
             }
@@ -915,6 +949,16 @@ public class Server {
         }
     }
 
+    private ChannelDependencies registerChannelDependencies() {
+        NoteService noteService = new NoteService(new NoteDao());
+        FredrickProcessor fredrickProcessor = new FredrickProcessor(noteService);
+        ChannelDependencies channelDependencies = new ChannelDependencies(noteService, fredrickProcessor);
+
+        PacketProcessor.registerGameHandlerDependencies(channelDependencies);
+
+        return channelDependencies;
+    }
+
     private LoginServer initLoginServer(int port) {
         LoginServer loginServer = new LoginServer(port);
         loginServer.start();
@@ -933,7 +977,7 @@ public class Server {
         }
     }
 
-    private void initializeTimelyTasks() {
+    private void initializeTimelyTasks(ChannelDependencies channelDependencies) {
         TimerManager tMan = TimerManager.getInstance();
         tMan.start();
         tMan.register(tMan.purge(), YamlConfig.config.server.PURGING_INTERVAL);//Purging ftw...
@@ -941,14 +985,13 @@ public class Server {
 
         long timeLeft = getTimeLeftForNextHour();
         tMan.register(new CharacterDiseaseTask(), YamlConfig.config.server.UPDATE_INTERVAL, YamlConfig.config.server.UPDATE_INTERVAL);
-        tMan.register(new ReleaseLockTask(), MINUTES.toMillis(2), MINUTES.toMillis(2));
         tMan.register(new CouponTask(), YamlConfig.config.server.COUPON_INTERVAL, timeLeft);
         tMan.register(new RankingCommandTask(), MINUTES.toMillis(5), MINUTES.toMillis(5));
         tMan.register(new RankingLoginTask(), YamlConfig.config.server.RANKING_INTERVAL, timeLeft);
         tMan.register(new LoginCoordinatorTask(), HOURS.toMillis(1), timeLeft);
         tMan.register(new EventRecallCoordinatorTask(), HOURS.toMillis(1), timeLeft);
         tMan.register(new LoginStorageTask(), MINUTES.toMillis(2), MINUTES.toMillis(2));
-        tMan.register(new DueyFredrickTask(), HOURS.toMillis(1), timeLeft);
+        tMan.register(new DueyFredrickTask(channelDependencies.fredrickProcessor()), HOURS.toMillis(1), timeLeft);
         tMan.register(new InvitationTask(), SECONDS.toMillis(30), SECONDS.toMillis(30));
         tMan.register(new RespawnTask(), YamlConfig.config.server.RESPAWN_INTERVAL, YamlConfig.config.server.RESPAWN_INTERVAL);
 
@@ -958,6 +1001,7 @@ public class Server {
     }
 
     public static void main(String[] args) {
+        System.setProperty("polyglot.engine.WarnInterpreterOnly", "false"); // Mute GraalVM warning: "The polyglot context is using an implementation that does not support runtime compilation."
         Server.getInstance().init();
     }
 
@@ -1165,7 +1209,7 @@ public class Server {
     public void expelMember(GuildCharacter initiator, String name, int cid) {
         Guild g = guilds.get(initiator.getGuildId());
         if (g != null) {
-            g.expelMember(initiator, name, cid);
+            g.expelMember(initiator, name, cid, channelDependencies.noteService());
         }
     }
 
@@ -1903,10 +1947,6 @@ public class Server {
 
         List<Channel> allChannels = getAllChannels();
 
-        if (YamlConfig.config.server.USE_THREAD_TRACKER) {
-            ThreadTracker.getInstance().cancelThreadTrackerTask();
-        }
-
         for (Channel ch : allChannels) {
             while (!ch.finishedShutdown()) {
                 try {
@@ -1933,13 +1973,7 @@ public class Server {
             new Thread(() -> System.exit(0)).start();
         } else {
             log.info("Restarting the server...");
-            try {
-                instance.finalize();//FUU I CAN AND IT'S FREE
-            } catch (Throwable ex) {
-                ex.printStackTrace();
-            }
             instance = null;
-            System.gc();
             getInstance().init();//DID I DO EVERYTHING?! D:
         }
     }

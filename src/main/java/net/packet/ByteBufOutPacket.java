@@ -71,8 +71,9 @@ public class ByteBufOutPacket implements OutPacket {
 
     @Override
     public void writeString(String value) {
-        writeShort((short) value.length());
-        writeBytes(value.getBytes(CharsetConstants.CHARSET));
+        byte[] bytes = value.getBytes(CharsetConstants.CHARSET);
+        writeShort(bytes.length);
+        writeBytes(bytes);
     }
 
     @Override
@@ -89,5 +90,10 @@ public class ByteBufOutPacket implements OutPacket {
     @Override
     public void skip(int numberOfBytes) {
         writeBytes(new byte[numberOfBytes]);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        return o instanceof ByteBufOutPacket other && byteBuf.equals(other.byteBuf);
     }
 }

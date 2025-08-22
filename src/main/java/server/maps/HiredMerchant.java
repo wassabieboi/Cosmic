@@ -33,8 +33,6 @@ import client.processor.npc.FredrickProcessor;
 import config.YamlConfig;
 import net.packet.Packet;
 import net.server.Server;
-import net.server.audit.locks.MonitoredLockType;
-import net.server.audit.locks.factory.MonitoredReentrantLockFactory;
 import server.ItemInformationProvider;
 import server.Trade;
 import tools.DatabaseConnection;
@@ -47,9 +45,15 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashSet;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * @author XoticStory
@@ -76,7 +80,7 @@ public class HiredMerchant extends AbstractMapObject {
     private final Visitor[] visitors = new Visitor[3];
     private final LinkedList<PastVisitor> visitorHistory = new LinkedList<>();
     private final LinkedHashSet<String> blacklist = new LinkedHashSet<>(); // case-sensitive character names
-    private final Lock visitorLock = MonitoredReentrantLockFactory.createLock(MonitoredLockType.VISITOR_MERCH, true);
+    private final Lock visitorLock = new ReentrantLock(true);
 
     private record Visitor(Character chr, Instant enteredAt) {}
 

@@ -4,8 +4,6 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class ServerConfig {
-    //Thread Tracker Configuration
-    public boolean USE_THREAD_TRACKER;
 
     //Database Configuration
     public String DB_URL_FORMAT;
@@ -70,7 +68,6 @@ public class ServerConfig {
     public boolean USE_MTS;
     public boolean USE_CPQ;
     public boolean USE_AUTOHIDE_GM;
-    public boolean USE_BUYBACK_SYSTEM;
     public boolean USE_FIXED_RATIO_HPMP_UPDATE;
     public boolean USE_FAMILY_SYSTEM;
     public boolean USE_DUEY;
@@ -84,6 +81,7 @@ public class ServerConfig {
     public boolean USE_STARTING_AP_4;
     public boolean USE_AUTOBAN;
     public boolean USE_AUTOBAN_LOG;
+    public boolean USE_EXP_GAIN_LOG;
     public boolean USE_AUTOSAVE;
     public boolean USE_SERVER_AUTOASSIGNER;
     public boolean USE_REFRESH_RANK_MOVE;
@@ -99,7 +97,6 @@ public class ServerConfig {
     public boolean USE_ENFORCE_MERCHANT_SAVE;
     public boolean USE_ENFORCE_MDOOR_POSITION;
     public boolean USE_SPAWN_CLEAN_MDOOR;
-    public boolean USE_SPAWN_LOOT_ON_ANIMATION;
     public boolean USE_SPAWN_RELEVANT_LOOT;
     public boolean USE_ERASE_PERMIT_ON_OPENSHOP;
     public boolean USE_ERASE_UNTRADEABLE_DROP;
@@ -107,10 +104,8 @@ public class ServerConfig {
     public boolean USE_BUFF_MOST_SIGNIFICANT;
     public boolean USE_BUFF_EVERLASTING;
     public boolean USE_MULTIPLE_SAME_EQUIP_DROP;
-    public boolean USE_BANISHABLE_TOWN_SCROLL;
     public boolean USE_ENABLE_FULL_RESPAWN;
     public boolean USE_ENABLE_CHAT_LOG;
-    public boolean USE_REBIRTH_SYSTEM;
     public boolean USE_MAP_OWNERSHIP_SYSTEM;
     public boolean USE_FISHING_SYSTEM;
     public boolean USE_NPCS_SCRIPTABLE;
@@ -124,6 +119,7 @@ public class ServerConfig {
     //Announcement Configuration
     public boolean USE_ANNOUNCE_SHOPITEMSOLD;
     public boolean USE_ANNOUNCE_CHANGEJOB;
+    public boolean USE_ANNOUNCE_NX_COUPON_LOOT;
 
     //Cash Shop Configuration
     public boolean USE_JOINT_CASHSHOP_INVENTORY;
@@ -134,10 +130,6 @@ public class ServerConfig {
     //Maker Configuration
     public boolean USE_MAKER_PERMISSIVE_ATKUP;
     public boolean USE_MAKER_FEE_HEURISTICS;
-
-    //Custom Configuration
-    public boolean USE_ENABLE_CUSTOM_NPC_SCRIPT;
-    public boolean USE_STARTER_MERGE;
 
     //Commands Configuration
     public boolean BLOCK_GENERATE_CASH_ITEM;
@@ -167,7 +159,6 @@ public class ServerConfig {
     public long NAME_CHANGE_COOLDOWN;
     public long WORLD_TRANSFER_COOLDOWN = NAME_CHANGE_COOLDOWN;//Cooldown for world tranfers, default is same as name change (30 days).
     public boolean INSTANT_NAME_CHANGE;
-    public int REBIRTH_NPC_ID;
 
     //Dangling Items/Locks Configuration
     public int ITEM_EXPIRE_TIME;
@@ -180,6 +171,7 @@ public class ServerConfig {
     public int ITEM_LIMIT_ON_MAP;
     public int MAP_VISITED_SIZE;
     public int MAP_DAMAGE_OVERTIME_INTERVAL;
+    public int MAP_DAMAGE_OVERTIME_COUNT;
 
     //Channel Mob Disease Monitor Configuration
     public int MOB_STATUS_MONITOR_PROC;
@@ -194,7 +186,6 @@ public class ServerConfig {
     public boolean USE_PERFECT_SCROLLING;
     public boolean USE_ENHANCED_CHSCROLL;
     public boolean USE_ENHANCED_CRAFTING;
-    public boolean USE_ENHANCED_CLNSLATE;
     public int SCROLL_CHANCE_ROLLS;
     public int CHSCROLL_STAT_RATE;
     public int CHSCROLL_STAT_RANGE;
@@ -244,7 +235,6 @@ public class ServerConfig {
     public boolean USE_EQUIPMNT_LVLUP_SLOTS;
     public boolean USE_EQUIPMNT_LVLUP_POWER;
     public boolean USE_EQUIPMNT_LVLUP_CASH;
-    public boolean USE_SPIKES_AVOID_BANISH;
     public int MAX_EQUIPMNT_LVLUP_STAT_UP;
     public int MAX_EQUIPMNT_STAT;
     public int USE_EQUIPMNT_LVLUP;
@@ -295,19 +285,17 @@ public class ServerConfig {
     public int WEDDING_GIFT_LIMIT;
     public boolean WEDDING_BLESSER_SHOWFX;
 
-    //Buyback Configuration
-    public boolean USE_BUYBACK_WITH_MESOS;
-    public float BUYBACK_FEE;
-    public float BUYBACK_LEVEL_STACK_FEE;
-    public int BUYBACK_MESO_MULTIPLIER;
-    public int BUYBACK_RETURN_MINUTES;
-    public int BUYBACK_COOLDOWN_MINUTES;
-
     // Login timeout by shavit
     public long TIMEOUT_DURATION;
 
     //Event End Timestamp
     public long EVENT_END_TIMESTAMP;
+
+    //GM Security Configuration
+    public int MINIMUM_GM_LEVEL_TO_TRADE;
+    public int MINIMUM_GM_LEVEL_TO_USE_STORAGE;
+    public int MINIMUM_GM_LEVEL_TO_USE_DUEY;
+    public int MINIMUM_GM_LEVEL_TO_DROP;
 
     //Custom NPC overrides. List of NPC IDs.
     public Map<String, String> NPCS_SCRIPTABLE = new HashMap<>();

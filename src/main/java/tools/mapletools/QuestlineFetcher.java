@@ -2,9 +2,27 @@ package tools.mapletools;
 
 import provider.wz.WZFiles;
 
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
-import java.util.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.Stack;
 
 /**
  * @author RonanLana
@@ -18,7 +36,7 @@ import java.util.*;
  * Running it should generate a report file under "output" folder with the search results.
  */
 public class QuestlineFetcher {
-    private static final File OUTPUT_FILE = ToolConstants.getOutputFile("questline_report.txt");
+    private static final Path OUTPUT_FILE = ToolConstants.getOutputFile("questline_report.txt");
     private static final String ACT_NAME = WZFiles.QUEST.getFilePath() + "/Act.img.xml";
     private static final String CHECK_NAME = WZFiles.QUEST.getFilePath() + "/Check.img.xml";
     private static final int INITIAL_STRING_LENGTH = 50;
@@ -289,7 +307,7 @@ public class QuestlineFetcher {
     private static void reportQuestlineData() {
         // This will reference one line at a time
 
-        try {
+        try (PrintWriter pw = new PrintWriter(Files.newOutputStream(OUTPUT_FILE))) {
             System.out.println("Reading quest scripts...");
             instantiateQuestScriptFiles(ToolConstants.SCRIPTS_PATH + "/quest");
 
@@ -301,12 +319,11 @@ public class QuestlineFetcher {
             calculateSkillRelatedMissingQuestScripts();
 
             System.out.println("Reporting results...");
-            printWriter = new PrintWriter(OUTPUT_FILE, StandardCharsets.UTF_8);
+            printWriter = pw;
 
             printReportFileHeader();
             printReportFileResults();
 
-            printWriter.close();
             System.out.println("Done!");
         } catch (FileNotFoundException ex) {
             System.out.println("Unable to open quest file.");
@@ -356,7 +373,13 @@ public class QuestlineFetcher {
     */
 
     public static void main(String[] args) {
+    	Instant instantStarted = Instant.now();
         reportQuestlineData();
+        Instant instantStopped = Instant.now();
+        Duration durationBetween = Duration.between(instantStarted, instantStopped);
+        System.out.println("Get elapsed time in milliseconds: " + durationBetween.toMillis());
+        System.out.println("Get elapsed time in seconds: " + durationBetween.toSeconds());
+
     }
 }
 

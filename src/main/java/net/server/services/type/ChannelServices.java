@@ -22,7 +22,12 @@ package net.server.services.type;
 import net.server.services.BaseService;
 import net.server.services.Service;
 import net.server.services.ServiceType;
-import net.server.services.task.channel.*;
+import net.server.services.task.channel.EventService;
+import net.server.services.task.channel.MobAnimationService;
+import net.server.services.task.channel.MobClearSkillService;
+import net.server.services.task.channel.MobMistService;
+import net.server.services.task.channel.MobStatusService;
+import net.server.services.task.channel.OverallService;
 
 /**
  * @author Ronan
@@ -33,7 +38,6 @@ public enum ChannelServices implements ServiceType {
     MOB_ANIMATION(MobAnimationService.class),
     MOB_CLEAR_SKILL(MobClearSkillService.class),
     MOB_MIST(MobMistService.class),
-    FACE_EXPRESSION(FaceExpressionService.class),
     EVENT(EventService.class),
     OVERALL(OverallService.class);
 

@@ -23,11 +23,174 @@ package net;
 
 import net.netty.LoginServer;
 import net.opcodes.RecvOpcode;
-import net.server.channel.handlers.*;
+import net.server.channel.handlers.AcceptFamilyHandler;
+import net.server.channel.handlers.AdminChatHandler;
+import net.server.channel.handlers.AdminCommandHandler;
+import net.server.channel.handlers.AdminLogHandler;
+import net.server.channel.handlers.AllianceOperationHandler;
+import net.server.channel.handlers.AranComboHandler;
+import net.server.channel.handlers.AutoAggroHandler;
+import net.server.channel.handlers.AutoAssignHandler;
+import net.server.channel.handlers.BBSOperationHandler;
+import net.server.channel.handlers.BeholderHandler;
+import net.server.channel.handlers.BuddylistModifyHandler;
+import net.server.channel.handlers.CancelBuffHandler;
+import net.server.channel.handlers.CancelChairHandler;
+import net.server.channel.handlers.CancelDebuffHandler;
+import net.server.channel.handlers.CancelItemEffectHandler;
+import net.server.channel.handlers.CashOperationHandler;
+import net.server.channel.handlers.CashShopSurpriseHandler;
+import net.server.channel.handlers.ChangeChannelHandler;
+import net.server.channel.handlers.ChangeMapHandler;
+import net.server.channel.handlers.ChangeMapSpecialHandler;
+import net.server.channel.handlers.CharInfoRequestHandler;
+import net.server.channel.handlers.ClickGuideHandler;
+import net.server.channel.handlers.CloseChalkboardHandler;
+import net.server.channel.handlers.CloseRangeDamageHandler;
+import net.server.channel.handlers.CoconutHandler;
+import net.server.channel.handlers.CouponCodeHandler;
+import net.server.channel.handlers.DamageSummonHandler;
+import net.server.channel.handlers.DenyAllianceRequestHandler;
+import net.server.channel.handlers.DenyGuildRequestHandler;
+import net.server.channel.handlers.DenyPartyRequestHandler;
+import net.server.channel.handlers.DistributeAPHandler;
+import net.server.channel.handlers.DistributeSPHandler;
+import net.server.channel.handlers.DoorHandler;
+import net.server.channel.handlers.DueyHandler;
+import net.server.channel.handlers.EnterCashShopHandler;
+import net.server.channel.handlers.EnterMTSHandler;
+import net.server.channel.handlers.FaceExpressionHandler;
+import net.server.channel.handlers.FamilyAddHandler;
+import net.server.channel.handlers.FamilyPreceptsHandler;
+import net.server.channel.handlers.FamilySeparateHandler;
+import net.server.channel.handlers.FamilySummonResponseHandler;
+import net.server.channel.handlers.FamilyUseHandler;
+import net.server.channel.handlers.FieldDamageMobHandler;
+import net.server.channel.handlers.FredrickHandler;
+import net.server.channel.handlers.GeneralChatHandler;
+import net.server.channel.handlers.GiveFameHandler;
+import net.server.channel.handlers.GrenadeEffectHandler;
+import net.server.channel.handlers.GuildOperationHandler;
+import net.server.channel.handlers.HealOvertimeHandler;
+import net.server.channel.handlers.HiredMerchantRequest;
+import net.server.channel.handlers.InnerPortalHandler;
+import net.server.channel.handlers.InventoryMergeHandler;
+import net.server.channel.handlers.InventorySortHandler;
+import net.server.channel.handlers.ItemMoveHandler;
+import net.server.channel.handlers.ItemPickupHandler;
+import net.server.channel.handlers.ItemRewardHandler;
+import net.server.channel.handlers.KeymapChangeHandler;
+import net.server.channel.handlers.LeftKnockbackHandler;
+import net.server.channel.handlers.MTSHandler;
+import net.server.channel.handlers.MagicDamageHandler;
+import net.server.channel.handlers.MakerSkillHandler;
+import net.server.channel.handlers.MesoDropHandler;
+import net.server.channel.handlers.MessengerHandler;
+import net.server.channel.handlers.MobBanishPlayerHandler;
+import net.server.channel.handlers.MobDamageMobFriendlyHandler;
+import net.server.channel.handlers.MobDamageMobHandler;
+import net.server.channel.handlers.MonsterBombHandler;
+import net.server.channel.handlers.MonsterBookCoverHandler;
+import net.server.channel.handlers.MonsterCarnivalHandler;
+import net.server.channel.handlers.MoveDragonHandler;
+import net.server.channel.handlers.MoveLifeHandler;
+import net.server.channel.handlers.MovePetHandler;
+import net.server.channel.handlers.MovePlayerHandler;
+import net.server.channel.handlers.MoveSummonHandler;
+import net.server.channel.handlers.MultiChatHandler;
+import net.server.channel.handlers.NPCAnimationHandler;
+import net.server.channel.handlers.NPCMoreTalkHandler;
+import net.server.channel.handlers.NPCShopHandler;
+import net.server.channel.handlers.NPCTalkHandler;
+import net.server.channel.handlers.NewYearCardHandler;
+import net.server.channel.handlers.NoteActionHandler;
+import net.server.channel.handlers.OpenFamilyHandler;
+import net.server.channel.handlers.OpenFamilyPedigreeHandler;
+import net.server.channel.handlers.OwlWarpHandler;
+import net.server.channel.handlers.PartyOperationHandler;
+import net.server.channel.handlers.PartySearchRegisterHandler;
+import net.server.channel.handlers.PartySearchStartHandler;
+import net.server.channel.handlers.PartySearchUpdateHandler;
+import net.server.channel.handlers.PetAutoPotHandler;
+import net.server.channel.handlers.PetChatHandler;
+import net.server.channel.handlers.PetCommandHandler;
+import net.server.channel.handlers.PetExcludeItemsHandler;
+import net.server.channel.handlers.PetFoodHandler;
+import net.server.channel.handlers.PetLootHandler;
+import net.server.channel.handlers.PlayerInteractionHandler;
+import net.server.channel.handlers.PlayerLoggedinHandler;
+import net.server.channel.handlers.PlayerMapTransitionHandler;
+import net.server.channel.handlers.QuestActionHandler;
+import net.server.channel.handlers.QuickslotKeyMappedModifiedHandler;
+import net.server.channel.handlers.RPSActionHandler;
+import net.server.channel.handlers.RaiseIncExpHandler;
+import net.server.channel.handlers.RaiseUIStateHandler;
+import net.server.channel.handlers.RangedAttackHandler;
+import net.server.channel.handlers.ReactorHitHandler;
+import net.server.channel.handlers.RemoteGachaponHandler;
+import net.server.channel.handlers.RemoteStoreHandler;
+import net.server.channel.handlers.ReportHandler;
+import net.server.channel.handlers.RingActionHandler;
+import net.server.channel.handlers.ScriptedItemHandler;
+import net.server.channel.handlers.ScrollHandler;
+import net.server.channel.handlers.SkillBookHandler;
+import net.server.channel.handlers.SkillEffectHandler;
+import net.server.channel.handlers.SkillMacroHandler;
+import net.server.channel.handlers.SnowballHandler;
+import net.server.channel.handlers.SpawnPetHandler;
+import net.server.channel.handlers.SpecialMoveHandler;
+import net.server.channel.handlers.SpouseChatHandler;
+import net.server.channel.handlers.StorageHandler;
+import net.server.channel.handlers.SummonDamageHandler;
+import net.server.channel.handlers.TakeDamageHandler;
+import net.server.channel.handlers.TouchMonsterDamageHandler;
+import net.server.channel.handlers.TouchReactorHandler;
+import net.server.channel.handlers.TouchingCashShopHandler;
+import net.server.channel.handlers.TransferNameHandler;
+import net.server.channel.handlers.TransferNameResultHandler;
+import net.server.channel.handlers.TransferWorldHandler;
+import net.server.channel.handlers.TrockAddMapHandler;
+import net.server.channel.handlers.UseCashItemHandler;
+import net.server.channel.handlers.UseCatchItemHandler;
+import net.server.channel.handlers.UseChairHandler;
+import net.server.channel.handlers.UseDeathItemHandler;
+import net.server.channel.handlers.UseGachaExpHandler;
+import net.server.channel.handlers.UseHammerHandler;
+import net.server.channel.handlers.UseItemEffectHandler;
+import net.server.channel.handlers.UseItemHandler;
+import net.server.channel.handlers.UseMapleLifeHandler;
+import net.server.channel.handlers.UseMountFoodHandler;
+import net.server.channel.handlers.UseOwlOfMinervaHandler;
+import net.server.channel.handlers.UseSolomonHandler;
+import net.server.channel.handlers.UseSummonBagHandler;
+import net.server.channel.handlers.UseWaterOfLifeHandler;
+import net.server.channel.handlers.WeddingHandler;
+import net.server.channel.handlers.WeddingTalkHandler;
+import net.server.channel.handlers.WeddingTalkMoreHandler;
+import net.server.channel.handlers.WhisperHandler;
 import net.server.handlers.CustomPacketHandler;
 import net.server.handlers.KeepAliveHandler;
 import net.server.handlers.LoginRequiringNoOpHandler;
-import net.server.handlers.login.*;
+import net.server.handlers.login.AcceptToSHandler;
+import net.server.handlers.login.AfterLoginHandler;
+import net.server.handlers.login.CharSelectedHandler;
+import net.server.handlers.login.CharSelectedWithPicHandler;
+import net.server.handlers.login.CharlistRequestHandler;
+import net.server.handlers.login.CheckCharNameHandler;
+import net.server.handlers.login.CreateCharHandler;
+import net.server.handlers.login.DeleteCharHandler;
+import net.server.handlers.login.GuestLoginHandler;
+import net.server.handlers.login.LoginPasswordHandler;
+import net.server.handlers.login.RegisterPicHandler;
+import net.server.handlers.login.RegisterPinHandler;
+import net.server.handlers.login.RelogRequestHandler;
+import net.server.handlers.login.ServerStatusRequestHandler;
+import net.server.handlers.login.ServerlistRequestHandler;
+import net.server.handlers.login.SetGenderHandler;
+import net.server.handlers.login.ViewAllCharHandler;
+import net.server.handlers.login.ViewAllCharRegisterPicHandler;
+import net.server.handlers.login.ViewAllCharSelectedHandler;
+import net.server.handlers.login.ViewAllCharSelectedWithPicHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -37,6 +200,9 @@ import java.util.Map;
 public final class PacketProcessor {
     private static final Logger log = LoggerFactory.getLogger(PacketProcessor.class);
     private static final Map<String, PacketProcessor> instances = new LinkedHashMap<>();
+
+    private static ChannelDependencies channelDeps;
+
     private PacketHandler[] handlers;
 
     private PacketProcessor() {
@@ -49,11 +215,19 @@ public final class PacketProcessor {
         handlers = new PacketHandler[maxRecvOp + 1];
     }
 
+    public static void registerGameHandlerDependencies(ChannelDependencies channelDependencies) {
+        PacketProcessor.channelDeps = channelDependencies;
+    }
+
     public static PacketProcessor getLoginServerProcessor() {
         return getProcessor(LoginServer.WORLD_ID, LoginServer.CHANNEL_ID);
     }
 
     public static PacketProcessor getChannelServerProcessor(int world, int channel) {
+        if (channelDeps == null) {
+            throw new IllegalStateException("Unable to get channel server processor - dependencies are not registered");
+        }
+
         return getProcessor(world, channel);
     }
 
@@ -141,7 +315,7 @@ public final class PacketProcessor {
         registerHandler(RecvOpcode.ITEM_SORT, new InventoryMergeHandler());
         registerHandler(RecvOpcode.ITEM_MOVE, new ItemMoveHandler());
         registerHandler(RecvOpcode.MESO_DROP, new MesoDropHandler());
-        registerHandler(RecvOpcode.PLAYER_LOGGEDIN, new PlayerLoggedinHandler());
+        registerHandler(RecvOpcode.PLAYER_LOGGEDIN, new PlayerLoggedinHandler(channelDeps.noteService()));
         registerHandler(RecvOpcode.CHANGE_MAP, new ChangeMapHandler());
         registerHandler(RecvOpcode.MOVE_LIFE, new MoveLifeHandler());
         registerHandler(RecvOpcode.CLOSE_RANGE_ATTACK, new CloseRangeDamageHandler());
@@ -149,7 +323,7 @@ public final class PacketProcessor {
         registerHandler(RecvOpcode.MAGIC_ATTACK, new MagicDamageHandler());
         registerHandler(RecvOpcode.TAKE_DAMAGE, new TakeDamageHandler());
         registerHandler(RecvOpcode.MOVE_PLAYER, new MovePlayerHandler());
-        registerHandler(RecvOpcode.USE_CASH_ITEM, new UseCashItemHandler());
+        registerHandler(RecvOpcode.USE_CASH_ITEM, new UseCashItemHandler(channelDeps.noteService()));
         registerHandler(RecvOpcode.USE_ITEM, new UseItemHandler());
         registerHandler(RecvOpcode.USE_RETURN_SCROLL, new UseItemHandler());
         registerHandler(RecvOpcode.USE_UPGRADE_SCROLL, new ScrollHandler());
@@ -191,7 +365,7 @@ public final class PacketProcessor {
         registerHandler(RecvOpcode.MESSENGER, new MessengerHandler());
         registerHandler(RecvOpcode.NPC_ACTION, new NPCAnimationHandler());
         registerHandler(RecvOpcode.CHECK_CASH, new TouchingCashShopHandler());
-        registerHandler(RecvOpcode.CASHSHOP_OPERATION, new CashOperationHandler());
+        registerHandler(RecvOpcode.CASHSHOP_OPERATION, new CashOperationHandler(channelDeps.noteService()));
         registerHandler(RecvOpcode.COUPON_CODE, new CouponCodeHandler());
         registerHandler(RecvOpcode.SPAWN_PET, new SpawnPetHandler());
         registerHandler(RecvOpcode.MOVE_PET, new MovePetHandler());
@@ -204,11 +378,11 @@ public final class PacketProcessor {
         registerHandler(RecvOpcode.CANCEL_DEBUFF, new CancelDebuffHandler());
         registerHandler(RecvOpcode.USE_SKILL_BOOK, new SkillBookHandler());
         registerHandler(RecvOpcode.SKILL_MACRO, new SkillMacroHandler());
-        registerHandler(RecvOpcode.NOTE_ACTION, new NoteActionHandler());
+        registerHandler(RecvOpcode.NOTE_ACTION, new NoteActionHandler(channelDeps.noteService()));
         registerHandler(RecvOpcode.CLOSE_CHALKBOARD, new CloseChalkboardHandler());
         registerHandler(RecvOpcode.USE_MOUNT_FOOD, new UseMountFoodHandler());
         registerHandler(RecvOpcode.MTS_OPERATION, new MTSHandler());
-        registerHandler(RecvOpcode.RING_ACTION, new RingActionHandler());
+        registerHandler(RecvOpcode.RING_ACTION, new RingActionHandler(channelDeps.noteService()));
         registerHandler(RecvOpcode.SPOUSE_CHAT, new SpouseChatHandler());
         registerHandler(RecvOpcode.PET_AUTO_POT, new PetAutoPotHandler());
         registerHandler(RecvOpcode.PET_EXCLUDE_ITEMS, new PetExcludeItemsHandler());
@@ -262,7 +436,7 @@ public final class PacketProcessor {
         registerHandler(RecvOpcode.COCONUT, new CoconutHandler());
         registerHandler(RecvOpcode.ARAN_COMBO_COUNTER, new AranComboHandler());
         registerHandler(RecvOpcode.CLICK_GUIDE, new ClickGuideHandler());
-        registerHandler(RecvOpcode.FREDRICK_ACTION, new FredrickHandler());
+        registerHandler(RecvOpcode.FREDRICK_ACTION, new FredrickHandler(channelDeps.fredrickProcessor()));
         registerHandler(RecvOpcode.MONSTER_CARNIVAL, new MonsterCarnivalHandler());
         registerHandler(RecvOpcode.REMOTE_STORE, new RemoteStoreHandler());
         registerHandler(RecvOpcode.WEDDING_ACTION, new WeddingHandler());

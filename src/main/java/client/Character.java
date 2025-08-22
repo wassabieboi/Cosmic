@@ -24,8 +24,16 @@ package client;
 
 import client.autoban.AutobanManager;
 import client.creator.CharacterFactoryRecipe;
-import client.inventory.*;
-import client.inventory.Equip.StatUpgrade;
+import client.inventory.Equip;
+import client.inventory.Inventory;
+import client.inventory.InventoryProof;
+import client.inventory.InventoryType;
+import client.inventory.Item;
+import client.inventory.ItemFactory;
+import client.inventory.ModifyInventory;
+import client.inventory.Pet;
+import client.inventory.PetDataFactory;
+import client.inventory.WeaponType;
 import client.inventory.manipulator.CashIdGenerator;
 import client.inventory.manipulator.InventoryManipulator;
 import client.keybind.KeyBinding;
@@ -40,70 +48,153 @@ import constants.id.ItemId;
 import constants.id.MapId;
 import constants.id.MobId;
 import constants.inventory.ItemConstants;
-import constants.skills.*;
+import constants.skills.Aran;
+import constants.skills.Beginner;
+import constants.skills.Bishop;
+import constants.skills.BlazeWizard;
+import constants.skills.Bowmaster;
+import constants.skills.Brawler;
+import constants.skills.Buccaneer;
+import constants.skills.Corsair;
+import constants.skills.Crusader;
+import constants.skills.DarkKnight;
+import constants.skills.DawnWarrior;
+import constants.skills.Evan;
+import constants.skills.FPArchMage;
+import constants.skills.Hermit;
+import constants.skills.Hero;
+import constants.skills.ILArchMage;
+import constants.skills.Legend;
+import constants.skills.Magician;
+import constants.skills.Marauder;
+import constants.skills.Marksman;
+import constants.skills.NightLord;
+import constants.skills.Noblesse;
+import constants.skills.Paladin;
+import constants.skills.Priest;
+import constants.skills.Ranger;
+import constants.skills.Shadower;
+import constants.skills.Sniper;
+import constants.skills.ThunderBreaker;
+import constants.skills.Warrior;
 import net.packet.Packet;
 import net.server.PlayerBuffValueHolder;
 import net.server.PlayerCoolDownValueHolder;
 import net.server.Server;
-import net.server.audit.locks.MonitoredLockType;
-import net.server.audit.locks.factory.MonitoredReentrantLockFactory;
 import net.server.coordinator.world.InviteCoordinator;
 import net.server.guild.Alliance;
 import net.server.guild.Guild;
 import net.server.guild.GuildCharacter;
 import net.server.guild.GuildPackets;
-import net.server.services.task.channel.FaceExpressionService;
 import net.server.services.task.world.CharacterSaveService;
-import net.server.services.type.ChannelServices;
 import net.server.services.type.WorldServices;
-import net.server.world.*;
+import net.server.world.Messenger;
+import net.server.world.MessengerCharacter;
+import net.server.world.Party;
+import net.server.world.PartyCharacter;
+import net.server.world.PartyOperation;
+import net.server.world.World;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import scripting.AbstractPlayerInteraction;
 import scripting.event.EventInstanceManager;
 import scripting.item.ItemScriptManager;
-import server.*;
+import server.CashShop;
+import server.ExpLogger;
+import server.ExpLogger.ExpLogRecord;
+import server.ItemInformationProvider;
 import server.ItemInformationProvider.ScriptedItem;
+import server.Marriage;
+import server.Shop;
+import server.StatEffect;
+import server.Storage;
+import server.ThreadManager;
+import server.TimerManager;
+import server.Trade;
 import server.events.Events;
 import server.events.RescueGaga;
 import server.events.gm.Fitness;
 import server.events.gm.Ola;
+import server.life.BanishInfo;
 import server.life.MobSkill;
 import server.life.MobSkillFactory;
+import server.life.MobSkillId;
+import server.life.MobSkillType;
 import server.life.Monster;
 import server.life.PlayerNPC;
-import server.maps.*;
+import server.maps.AbstractAnimatedMapObject;
+import server.maps.Door;
+import server.maps.DoorObject;
+import server.maps.Dragon;
+import server.maps.FieldLimit;
+import server.maps.HiredMerchant;
+import server.maps.MapEffect;
+import server.maps.MapItem;
+import server.maps.MapManager;
+import server.maps.MapObject;
+import server.maps.MapObjectType;
+import server.maps.MapleMap;
+import server.maps.MiniGame;
 import server.maps.MiniGame.MiniGameResult;
+import server.maps.PlayerShop;
+import server.maps.PlayerShopItem;
+import server.maps.Portal;
+import server.maps.SavedLocation;
+import server.maps.SavedLocationType;
+import server.maps.Summon;
 import server.minigame.RockPaperScissor;
 import server.partyquest.AriantColiseum;
 import server.partyquest.MonsterCarnival;
 import server.partyquest.MonsterCarnivalParty;
 import server.partyquest.PartyQuest;
 import server.quest.Quest;
-import tools.*;
-import tools.exceptions.NotEnabledException;
+import tools.DatabaseConnection;
+import tools.LongTool;
+import tools.PacketCreator;
+import tools.Pair;
+import tools.Randomizer;
 import tools.packets.WeddingPackets;
 
 import java.awt.*;
 import java.lang.ref.WeakReference;
-import java.sql.*;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.sql.Timestamp;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Calendar;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.EnumMap;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.LinkedList;
 import java.util.List;
-import java.util.*;
+import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
+import java.util.Stack;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-import static java.util.concurrent.TimeUnit.*;
+import static java.util.concurrent.TimeUnit.DAYS;
+import static java.util.concurrent.TimeUnit.MINUTES;
+import static java.util.concurrent.TimeUnit.SECONDS;
 
 public class Character extends AbstractCharacterObject {
     private static final Logger log = LoggerFactory.getLogger(Character.class);
-    private static final ItemInformationProvider ii = ItemInformationProvider.getInstance();
     private static final String LEVEL_200 = "[Congrats] %s has reached Level %d! Congratulate %s on such an amazing achievement!";
     private static final String[] BLOCKED_NAMES = {"admin", "owner", "moderator", "intern", "donor", "administrator", "FREDRICK", "help", "helper", "alert", "notice", "maplestory", "fuck", "wizet", "fucking", "negro", "fuk", "fuc", "penis", "pussy", "asshole", "gay",
             "nigger", "homo", "suck", "cum", "shit", "shitty", "condom", "security", "official", "rape", "nigga", "sex", "tit", "boner", "orgy", "clit", "asshole", "fatass", "bitch", "support", "gamemaster", "cock", "gaay", "gm",
@@ -134,7 +225,7 @@ public class Character extends AbstractCharacterObject {
     private int expRate = 1, mesoRate = 1, dropRate = 1, expCoupon = 1, mesoCoupon = 1, dropCoupon = 1;
     private int omokwins, omokties, omoklosses, matchcardwins, matchcardties, matchcardlosses;
     private int owlSearch;
-    private long lastfametime, lastUsedCashItem, lastExpression = 0, lastHealed, lastBuyback = 0, lastDeathtime, jailExpiration = -1;
+    private long lastfametime, lastUsedCashItem, lastExpression = 0, lastHealed, lastDeathtime, jailExpiration = -1;
     private transient int localstr, localdex, localluk, localint_, localmagic, localwatk;
     private transient int equipmaxhp, equipmaxmp, equipstr, equipdex, equipluk, equipint_, equipmagic, equipwatk, localchairhp, localchairmp;
     private int localchairrate;
@@ -157,6 +248,7 @@ public class Character extends AbstractCharacterObject {
     private final AtomicInteger gachaexp = new AtomicInteger();
     private final AtomicInteger meso = new AtomicInteger();
     private final AtomicInteger chair = new AtomicInteger(-1);
+    private long totalExpGained = 0;
     private int merchantmeso;
     private BuddyList buddylist;
     private EventInstanceManager eventInstance = null;
@@ -174,7 +266,7 @@ public class Character extends AbstractCharacterObject {
     private final Pet[] pets = new Pet[3];
     private PlayerShop playerShop = null;
     private Shop shop = null;
-    private SkinColor skinColor = SkinColor.NORMAL;
+    private SkinColor skinColor = SkinColor.LIGHT;
     private Storage storage = null;
     private Trade trade = null;
     private MonsterBook monsterbook;
@@ -218,11 +310,11 @@ public class Character extends AbstractCharacterObject {
     private ScheduledFuture<?> chairRecoveryTask = null;
     private ScheduledFuture<?> pendantOfSpirit = null; //1122017
     private ScheduledFuture<?> cpqSchedule = null;
-    private final Lock chrLock = MonitoredReentrantLockFactory.createLock(MonitoredLockType.CHARACTER_CHR, true);
-    private final Lock evtLock = MonitoredReentrantLockFactory.createLock(MonitoredLockType.CHARACTER_EVT, true);
-    private final Lock petLock = MonitoredReentrantLockFactory.createLock(MonitoredLockType.CHARACTER_PET, true);
-    private final Lock prtLock = MonitoredReentrantLockFactory.createLock(MonitoredLockType.CHARACTER_PRT);
-    private final Lock cpnLock = MonitoredReentrantLockFactory.createLock(MonitoredLockType.CHARACTER_CPN);
+    private final Lock chrLock = new ReentrantLock(true);
+    private final Lock evtLock = new ReentrantLock(true);
+    private final Lock petLock = new ReentrantLock(true);
+    private final Lock prtLock = new ReentrantLock();
+    private final Lock cpnLock = new ReentrantLock();
     private final Map<Integer, Set<Integer>> excluded = new LinkedHashMap<>();
     private final Set<Integer> excludedItems = new LinkedHashSet<>();
     private final Set<Integer> disabledPartySearchInvites = new LinkedHashSet<>();
@@ -251,7 +343,6 @@ public class Character extends AbstractCharacterObject {
     private boolean loggedIn = false;
     private boolean useCS;  //chaos scroll upon crafting item.
     private long npcCd;
-    private long lastHpDec = 0;
     private int newWarpMap = -1;
     private boolean canWarpMap = true;  //only one "warp" must be used per call, and this will define the right one.
     private int canWarpCounter = 0;     //counts how many times "inner warps" have been called.
@@ -260,9 +351,6 @@ public class Character extends AbstractCharacterObject {
     private int targetHpBarHash = 0;
     private long targetHpBarTime = 0;
     private long nextWarningTime = 0;
-    private int banishMap = -1;
-    private int banishSp = -1;
-    private long banishTime = 0;
     private long lastExpGainTime;
     private boolean pendingNameChange; //only used to change name on logout, not to be relied upon elsewhere
     private long loginTime;
@@ -724,7 +812,7 @@ public class Character extends AbstractCharacterObject {
         int maxbasedamage;
         Item weapon_item = getInventory(InventoryType.EQUIPPED).getItem((short) -11);
         if (weapon_item != null) {
-            maxbasedamage = calculateMaxBaseDamage(watk, ii.getWeaponType(weapon_item.getItemId()));
+            maxbasedamage = calculateMaxBaseDamage(watk, ItemInformationProvider.getInstance().getWeaponType(weapon_item.getItemId()));
         } else {
             if (job.isA(Job.PIRATE) || job.isA(Job.THUNDERBREAKER1)) {
                 double weapMulti = 3;
@@ -824,7 +912,7 @@ public class Character extends AbstractCharacterObject {
         String medal = "";
         final Item medalItem = getInventory(InventoryType.EQUIPPED).getItem((short) -49);
         if (medalItem != null) {
-            medal = "<" + ii.getName(medalItem.getItemId()) + "> ";
+            medal = "<" + ItemInformationProvider.getInstance().getName(medalItem.getItemId()) + "> ";
         }
         return medal;
     }
@@ -1264,48 +1352,14 @@ public class Character extends AbstractCharacterObject {
         }
     }
 
-    public boolean canRecoverLastBanish() {
-        return System.currentTimeMillis() - this.banishTime < MINUTES.toMillis(5);
-    }
-
-    public Pair<Integer, Integer> getLastBanishData() {
-        return new Pair<>(this.banishMap, this.banishSp);
-    }
-
-    public void clearBanishPlayerData() {
-        this.banishMap = -1;
-        this.banishSp = -1;
-        this.banishTime = 0;
-    }
-
-    public void setBanishPlayerData(int banishMap, int banishSp, long banishTime) {
-        this.banishMap = banishMap;
-        this.banishSp = banishSp;
-        this.banishTime = banishTime;
-    }
-
-    public void changeMapBanish(int mapid, String portal, String msg) {
-        if (YamlConfig.config.server.USE_SPIKES_AVOID_BANISH) {
-            for (Item it : this.getInventory(InventoryType.EQUIPPED).list()) {
-                if ((it.getFlag() & ItemConstants.SPIKES) == ItemConstants.SPIKES) {
-                    return;
-                }
-            }
-        }
-
-        int banMap = this.getMapId();
-        int banSp = this.getMap().findClosestPlayerSpawnpoint(this.getPosition()).getId();
-        long banTime = System.currentTimeMillis();
-
-        if (msg != null) {
-            dropMessage(5, msg);
+    public void changeMapBanish(BanishInfo banishInfo) {
+        if (banishInfo.msg() != null) {
+            dropMessage(5, banishInfo.msg());
         }
 
         MapleMap map_ = getWarpMap(mapid);
-        Portal portal_ = map_.getPortal(portal);
+        Portal portal_ = map_.getPortal(banishInfo.portal());
         changeMap(map_, portal_ != null ? portal_ : map_.getRandomPlayerSpawnpoint());
-
-        setBanishPlayerData(banMap, banSp, banTime);
     }
 
     public void changeMap(int map) {
@@ -1688,7 +1742,6 @@ public class Character extends AbstractCharacterObject {
         this.mapTransitioning.set(true);
 
         this.unregisterChairBuff();
-        this.clearBanishPlayerData();
         Trade.cancelTrade(this, Trade.TradeResult.UNSUCCESSFUL_ANOTHER_MAP);
         this.closePlayerInteractions();
 
@@ -1720,10 +1773,6 @@ public class Character extends AbstractCharacterObject {
                 Character.this.getParty().setEnemy(k);
             }
             silentPartyUpdateInternal(getParty());  // EIM script calls inside
-
-            if (getMap().getHPDec() > 0) {
-                resetHpDecreaseTask();
-            }
         } else {
             log.warn("Chr {} got stuck when moving to map {}", getName(), map.getId());
             client.disconnect(true, false);     // thanks BHB for noticing a player storage stuck case here
@@ -1882,25 +1931,26 @@ public class Character extends AbstractCharacterObject {
         }
     }
 
-    public boolean applyConsumeOnPickup(final int itemid) {
-        if (itemid / 1000000 == 2) {
-            if (ii.isConsumeOnPickup(itemid)) {
-                if (ItemConstants.isPartyItem(itemid)) {
-                    List<Character> pchr = this.getPartyMembersOnSameMap();
-
-                    if (!ItemId.isPartyAllCure(itemid)) {
-                        StatEffect mse = ii.getItemEffect(itemid);
-
-                        if (!pchr.isEmpty()) {
-                            for (Character mc : pchr) {
-                                mse.applyTo(mc);
+    public boolean applyConsumeOnPickup(final int itemId) {
+        if (itemId / 1000000 == 2) {
+            ItemInformationProvider ii = ItemInformationProvider.getInstance();
+            if (ii.isConsumeOnPickup(itemId)) {
+                if (ItemConstants.isPartyItem(itemId)) {
+                    List<Character> partyMembers = this.getPartyMembersOnSameMap();
+                    if (!ItemId.isPartyAllCure(itemId)) {
+                        StatEffect mse = ii.getItemEffect(itemId);
+                        if (!partyMembers.isEmpty()) {
+                            for (Character mc : partyMembers) {
+                                if (mc.isAlive()) {
+                                    mse.applyTo(mc);
+                                }
                             }
-                        } else {
+                        } else if (this.isAlive()) {
                             mse.applyTo(this);
                         }
                     } else {
-                        if (!pchr.isEmpty()) {
-                            for (Character mc : pchr) {
+                        if (!partyMembers.isEmpty()) {
+                            for (Character mc : partyMembers) {
                                 mc.dispelDebuffs();
                             }
                         } else {
@@ -1908,11 +1958,11 @@ public class Character extends AbstractCharacterObject {
                         }
                     }
                 } else {
-                    ii.getItemEffect(itemid).applyTo(this);
+                    ii.getItemEffect(itemId).applyTo(this);
                 }
 
-                if (itemid / 10000 == 238) {
-                    this.getMonsterBook().addCard(client, itemid);
+                if (itemId / 10000 == 238) {
+                    this.getMonsterBook().addCard(client, itemId);
                 }
                 return true;
             }
@@ -1929,8 +1979,7 @@ public class Character extends AbstractCharacterObject {
             return;
         }
 
-        if (ob instanceof MapItem) {
-            MapItem mapitem = (MapItem) ob;
+        if (ob instanceof MapItem mapitem) {
             if (System.currentTimeMillis() - mapitem.getDropTime() < 400 || !mapitem.canBePickedBy(this)) {
                 sendPacket(PacketCreator.enableActions());
                 return;
@@ -1955,6 +2004,7 @@ public class Character extends AbstractCharacterObject {
 
                 Item mItem = mapitem.getItem();
                 boolean hasSpaceInventory = true;
+                ItemInformationProvider ii = ItemInformationProvider.getInstance();
                 if (ItemId.isNxCard(mapitem.getItemId()) || mapitem.getMeso() > 0 || ii.isConsumeOnPickup(mapitem.getItemId()) || (hasSpaceInventory = InventoryManipulator.checkSpace(client, mapitem.getItemId(), mItem.getQuantity(), mItem.getOwner()))) {
                     int mapId = this.getMapId();
 
@@ -1978,7 +2028,9 @@ public class Character extends AbstractCharacterObject {
                                 int nxGain = mapitem.getItemId() == ItemId.NX_CARD_100 ? 100 : 250;
                                 this.getCashShop().gainCash(1, nxGain);
 
-                                showHint("You have earned #e#b" + nxGain + " NX#k#n. (" + this.getCashShop().getCash(1) + " NX)", 300);
+                                if (YamlConfig.config.server.USE_ANNOUNCE_NX_COUPON_LOOT) {
+                                    showHint("You have earned #e#b" + nxGain + " NX#k#n. (" + this.getCashShop().getCash(CashShop.NX_CREDIT) + " NX)", 300);
+                                }
 
                                 this.getMap().pickItemDrop(pickupPacket, mapitem);
                             } else if (InventoryManipulator.addFromDrop(client, mItem, true)) {
@@ -2028,7 +2080,9 @@ public class Character extends AbstractCharacterObject {
                         int nxGain = mapitem.getItemId() == ItemId.NX_CARD_100 ? 100 : 250;
                         this.getCashShop().gainCash(1, nxGain);
 
-                        showHint("You have earned #e#b" + nxGain + " NX#k#n. (" + this.getCashShop().getCash(1) + " NX)", 300);
+                        if (YamlConfig.config.server.USE_ANNOUNCE_NX_COUPON_LOOT) {
+                            showHint("You have earned #e#b" + nxGain + " NX#k#n. (" + this.getCashShop().getCash(CashShop.NX_CREDIT) + " NX)", 300);
+                        }
                     } else if (applyConsumeOnPickup(mItem.getItemId())) {
                     } else if (InventoryManipulator.addFromDrop(client, mItem, true)) {
                         if (mItem.getItemId() == ItemId.ARPQ_SPIRIT_JEWEL) {
@@ -2069,6 +2123,7 @@ public class Character extends AbstractCharacterObject {
     }
 
     public boolean canHoldUniques(List<Integer> itemids) {
+        ItemInformationProvider ii = ItemInformationProvider.getInstance();
         for (Integer itemid : itemids) {
             if (ii.isPickupRestricted(itemid) && this.haveItem(itemid)) {
                 return false;
@@ -2322,7 +2377,7 @@ public class Character extends AbstractCharacterObject {
                 ps.executeUpdate();
             }
 
-            String[] toDel = {"famelog", "inventoryitems", "keymap", "queststatus", "savedlocations", "trocklocations", "skillmacros", "skills", "eventstats", "server_queue"};
+            String[] toDel = {"famelog", "inventoryitems", "keymap", "queststatus", "savedlocations", "trocklocations", "skillmacros", "skills", "eventstats" };
             for (String s : toDel) {
                 Character.deleteWhereCharacterId(con, "DELETE FROM `" + s + "` WHERE characterid = ?", cid);
             }
@@ -2760,37 +2815,17 @@ public class Character extends AbstractCharacterObject {
 
     public void changeFaceExpression(int emote) {
         long timeNow = Server.getInstance().getCurrentTime();
-        if (timeNow - lastExpression > 2000) {
+        // Client allows changing every 2 seconds. Give it a little bit of overhead for packet delays.
+        if (timeNow - lastExpression > 1500) {
             lastExpression = timeNow;
-
-            FaceExpressionService service = (FaceExpressionService) client.getChannelServer().getServiceAccess(ChannelServices.FACE_EXPRESSION);
-            service.registerFaceExpression(map, this, emote);
+            getMap().broadcastMessage(this, PacketCreator.facialExpression(this, emote), false);
         }
     }
 
-    private void doHurtHp() {
+    public void doHurtHp() {
         if (!(this.getInventory(InventoryType.EQUIPPED).findById(getMap().getHPDecProtect()) != null || buffMapProtection())) {
             addHP(-getMap().getHPDec());
-            lastHpDec = Server.getInstance().getCurrentTime();
         }
-    }
-
-    private void startHpDecreaseTask(long lastHpTask) {
-        hpDecreaseTask = TimerManager.getInstance().register(new Runnable() {
-            @Override
-            public void run() {
-                doHurtHp();
-            }
-        }, YamlConfig.config.server.MAP_DAMAGE_OVERTIME_INTERVAL, YamlConfig.config.server.MAP_DAMAGE_OVERTIME_INTERVAL - lastHpTask);
-    }
-
-    public void resetHpDecreaseTask() {
-        if (hpDecreaseTask != null) {
-            hpDecreaseTask.cancel(false);
-        }
-
-        long lastHpTask = Server.getInstance().getCurrentTime() - lastHpDec;
-        startHpDecreaseTask((lastHpTask > YamlConfig.config.server.MAP_DAMAGE_OVERTIME_INTERVAL) ? YamlConfig.config.server.MAP_DAMAGE_OVERTIME_INTERVAL : lastHpTask);
     }
 
     public void dropMessage(String message) {
@@ -3118,6 +3153,7 @@ public class Character extends AbstractCharacterObject {
                 leftover = nextExp - Integer.MAX_VALUE;
             }
             updateSingleStat(Stat.EXP, exp.addAndGet((int) total));
+            totalExpGained += total;
             if (show) {
                 announceExpGain(gain, equip, party, inChat, white);
             }
@@ -3134,6 +3170,20 @@ public class Character extends AbstractCharacterObject {
                 gainExpInternal(leftover, equip, party, false, inChat, white);
             } else {
                 lastExpGainTime = System.currentTimeMillis();
+
+                if (YamlConfig.config.server.USE_EXP_GAIN_LOG) {
+                    ExpLogRecord expLogRecord = new ExpLogger.ExpLogRecord(
+                        getWorldServer().getExpRate(),
+                        expCoupon,
+                        totalExpGained,
+                        exp.get(),
+                        new Timestamp(lastExpGainTime),
+                        id
+                    );
+                    ExpLogger.putExpLogRecord(expLogRecord);
+                }
+
+                totalExpGained = 0;
             }
         }
     }
@@ -3768,6 +3818,7 @@ public class Character extends AbstractCharacterObject {
     }
 
     public void cancelEffect(int itemId) {
+        ItemInformationProvider ii = ItemInformationProvider.getInstance();
         cancelEffect(ii.getItemEffect(itemId), false, -1);
     }
 
@@ -5973,7 +6024,8 @@ public class Character extends AbstractCharacterObject {
             sendPacket(PacketCreator.giveBuff(energybar, 0, stat));
             sendPacket(PacketCreator.showOwnBuffEffect(energycharge.getId(), 2));
             getMap().broadcastPacket(this, PacketCreator.showBuffEffect(id, energycharge.getId(), 2));
-            getMap().broadcastPacket(this, PacketCreator.giveForeignBuff(energybar, stat));
+            getMap().broadcastPacket(this, PacketCreator.giveForeignPirateBuff(id, energycharge.getId(),
+                    ceffect.getDuration(), stat));
         }
         if (energybar >= 10000 && energybar < 11000) {
             energybar = 15000;
@@ -6062,98 +6114,11 @@ public class Character extends AbstractCharacterObject {
         }
     }
 
-    private boolean canBuyback(int fee, boolean usingMesos) {
-        return (usingMesos ? this.getMeso() : cashshop.getCash(1)) >= fee;
-    }
-
-    private void applyBuybackFee(int fee, boolean usingMesos) {
-        if (usingMesos) {
-            this.gainMeso(-fee);
-        } else {
-            cashshop.gainCash(1, -fee);
-        }
-    }
-
-    private long getNextBuybackTime() {
-        return lastBuyback + MINUTES.toMillis(YamlConfig.config.server.BUYBACK_COOLDOWN_MINUTES);
-    }
-
-    private boolean isBuybackInvincible() {
-        return Server.getInstance().getCurrentTime() - lastBuyback < 4200;
-    }
-
-    private int getBuybackFee() {
-        float fee = YamlConfig.config.server.BUYBACK_FEE;
-        int grade = Math.min(Math.max(level, 30), 120) - 30;
-
-        fee += (grade * YamlConfig.config.server.BUYBACK_LEVEL_STACK_FEE);
-        if (YamlConfig.config.server.USE_BUYBACK_WITH_MESOS) {
-            fee *= YamlConfig.config.server.BUYBACK_MESO_MULTIPLIER;
-        }
-
-        return (int) Math.floor(fee);
-    }
-
-    public void showBuybackInfo() {
-        String s = "#eBUYBACK STATUS#n\r\n\r\nCurrent buyback fee: #b" + getBuybackFee() + " " + (YamlConfig.config.server.USE_BUYBACK_WITH_MESOS ? "mesos" : "NX") + "#k\r\n\r\n";
-
-        long timeNow = Server.getInstance().getCurrentTime();
-        boolean avail = true;
-        if (!isAlive()) {
-            long timeLapsed = timeNow - lastDeathtime;
-            long timeRemaining = MINUTES.toMillis(YamlConfig.config.server.BUYBACK_RETURN_MINUTES) - (timeLapsed + Math.max(0, getNextBuybackTime() - timeNow));
-            if (timeRemaining < 1) {
-                s += "Buyback #e#rUNAVAILABLE#k#n";
-                avail = false;
-            } else {
-                s += "Buyback countdown: #e#b" + getTimeRemaining(MINUTES.toMillis(YamlConfig.config.server.BUYBACK_RETURN_MINUTES) - timeLapsed) + "#k#n";
-            }
-            s += "\r\n";
-        }
-
-        if (timeNow < getNextBuybackTime() && avail) {
-            s += "Buyback available in #r" + getTimeRemaining(getNextBuybackTime() - timeNow) + "#k";
-            s += "\r\n";
-        } else {
-            s += "Buyback #bavailable#k";
-        }
-
-        this.showHint(s);
-    }
-
     private static String getTimeRemaining(long timeLeft) {
         int seconds = (int) Math.floor(timeLeft / SECONDS.toMillis(1)) % 60;
         int minutes = (int) Math.floor(timeLeft / MINUTES.toMillis(1)) % 60;
 
         return (minutes > 0 ? (String.format("%02d", minutes) + " minutes, ") : "") + String.format("%02d", seconds) + " seconds";
-    }
-
-    public boolean couldBuyback() {  // Ronan's buyback system
-        long timeNow = Server.getInstance().getCurrentTime();
-
-        if (timeNow - lastDeathtime > MINUTES.toMillis(YamlConfig.config.server.BUYBACK_RETURN_MINUTES)) {
-            this.dropMessage(5, "The period of time to decide has expired, therefore you are unable to buyback.");
-            return false;
-        }
-
-        long nextBuybacktime = getNextBuybackTime();
-        if (timeNow < nextBuybacktime) {
-            long timeLeft = nextBuybacktime - timeNow;
-            this.dropMessage(5, "Next buyback available in " + getTimeRemaining(timeLeft) + ".");
-            return false;
-        }
-
-        boolean usingMesos = YamlConfig.config.server.USE_BUYBACK_WITH_MESOS;
-        int fee = getBuybackFee();
-
-        if (!canBuyback(fee, usingMesos)) {
-            this.dropMessage(5, "You don't have " + fee + " " + (usingMesos ? "mesos" : "NX") + " to buyback.");
-            return false;
-        }
-
-        lastBuyback = timeNow;
-        applyBuybackFee(fee, usingMesos);
-        return true;
     }
 
     public boolean isBuffFrom(BuffStat stat, Skill skill) {
@@ -6507,7 +6472,6 @@ public class Character extends AbstractCharacterObject {
             ThreadManager.getInstance().newTask(r);
         }
 
-        levelUpMessages();
         guildUpdate();
 
         FamilyEntry familyEntry = getFamilyEntry();
@@ -6546,94 +6510,6 @@ public class Character extends AbstractCharacterObject {
             return false;
         }
     }
-
-    private void levelUpMessages() {
-        if (level % 5 != 0) { //Performance FTW?
-            return;
-        }
-        if (level == 5) {
-            yellowMessage("Aww, you're level 5, how cute!");
-        } else if (level == 10) {
-            yellowMessage("Henesys Party Quest is now open to you! Head over to Henesys, find some friends, and try it out!");
-        } else if (level == 15) {
-            yellowMessage("Half-way to your 2nd job advancement, nice work!");
-        } else if (level == 20) {
-            yellowMessage("You can almost Kerning Party Quest!");
-        } else if (level == 25) {
-            yellowMessage("You seem to be improving, but you are still not ready to move on to the next step.");
-        } else if (level == 30) {
-            yellowMessage("You have finally reached level 30! Try job advancing, after that try the Mushroom Castle!");
-        } else if (level == 35) {
-            yellowMessage("Hey did you hear about this mall that opened in Kerning? Try visiting the Kerning Mall.");
-        } else if (level == 40) {
-            yellowMessage("Do @rates to see what all your rates are!");
-        } else if (level == 45) {
-            yellowMessage("I heard that a rock and roll artist died during the grand opening of the Kerning Mall. People are naming him the Spirit of Rock.");
-        } else if (level == 50) {
-            yellowMessage("You seem to be growing very fast, would you like to test your new found strength with the mighty Zakum?");
-        } else if (level == 55) {
-            yellowMessage("You can now try out the Ludibrium Maze Party Quest!");
-        } else if (level == 60) {
-            yellowMessage("Feels good to be near the end of 2nd job, doesn't it?");
-        } else if (level == 65) {
-            yellowMessage("You're only 5 more levels away from 3rd job, not bad!");
-        } else if (level == 70) {
-            yellowMessage("I see many people wearing a teddy bear helmet. I should ask someone where they got it from.");
-        } else if (level == 75) {
-            yellowMessage("You have reached level 3 quarters!");
-        } else if (level == 80) {
-            yellowMessage("You think you are powerful enough? Try facing horntail!");
-        } else if (level == 85) {
-            yellowMessage("Did you know? The majority of people who hit level 85 in Cosmic don't live to be 85 years old?");
-        } else if (level == 90) {
-            yellowMessage("Hey do you like the amusement park? I heard Spooky World is the best theme park around. I heard they sell cute teddy-bears.");
-        } else if (level == 95) {
-            yellowMessage("100% of people who hit level 95 in Cosmic don't live to be 95 years old.");
-        } else if (level == 100) {
-            yellowMessage("Mid-journey so far... You just reached level 100! Now THAT's such a feat, however to manage the 200 you will need even more passion and determination than ever! Good hunting!");
-        } else if (level == 105) {
-            yellowMessage("Have you ever been to leafre? I heard they have dragons!");
-        } else if (level == 110) {
-            yellowMessage("I see many people wearing a teddy bear helmet. I should ask someone where they got it from.");
-        } else if (level == 115) {
-            yellowMessage("I bet all you can think of is level 120, huh? Level 115 gets no love.");
-        } else if (level == 120) {
-            yellowMessage("Are you ready to learn from the masters? Head over to your job instructor!");
-        } else if (level == 125) {
-            yellowMessage("The struggle for mastery books has begun, huh?");
-        } else if (level == 130) {
-            yellowMessage("You should try Temple of Time. It should be pretty decent EXP.");
-        } else if (level == 135) {
-            yellowMessage("I hope you're still not struggling for mastery books!");
-        } else if (level == 140) {
-            yellowMessage("You're well into 4th job at this point, great work!");
-        } else if (level == 145) {
-            yellowMessage("Level 145 is serious business!");
-        } else if (level == 150) {
-            yellowMessage("You have becomed quite strong, but the journey is not yet over.");
-        } else if (level == 155) {
-            yellowMessage("At level 155, Zakum should be a joke to you. Nice job!");
-        } else if (level == 160) {
-            yellowMessage("Level 160 is pretty impressive. Try taking a picture and putting it on Instagram.");
-        } else if (level == 165) {
-            yellowMessage("At this level, you should start looking into doing some boss runs.");
-        } else if (level == 170) {
-            yellowMessage("Level 170, huh? You have the heart of a champion.");
-        } else if (level == 175) {
-            yellowMessage("You came a long way from level 1. Amazing job so far.");
-        } else if (level == 180) {
-            yellowMessage("Have you ever tried taking a boss on by yourself? It is quite difficult.");
-        } else if (level == 185) {
-            yellowMessage("Legend has it that you're a legend.");
-        } else if (level == 190) {
-            yellowMessage("You only have 10 more levels to go until you hit 200!");
-        } else if (level == 195) {
-            yellowMessage("Nothing is stopping you at this point, level 195!");
-        } else if (level == 200) {
-            yellowMessage("Very nicely done! You have reached the so-long dreamed LEVEL 200!!! You are truly a hero among men, cheers upon you!");
-        }
-    }
-
     public void setPlayerRates() {
         this.expRate *= GameConstants.getPlayerBonusExpRate(this.level / 20);
         this.mesoRate *= GameConstants.getPlayerBonusMesoRate(this.level / 20);
@@ -6821,6 +6697,7 @@ public class Character extends AbstractCharacterObject {
             return;
         }
 
+        ItemInformationProvider ii = ItemInformationProvider.getInstance();
         StatEffect mse = ii.getItemEffect(couponid);
         mse.applyTo(this);
     }
@@ -7358,10 +7235,9 @@ public class Character extends AbstractCharacterObject {
                             final int skilllv = rs.getInt("mobskilllv");
                             final long length = rs.getInt("length");
 
-                            MobSkill ms = MobSkillFactory.getMobSkill(skillid, skilllv);
-                            if (ms != null) {
-                                loadedDiseases.put(disease, new Pair<>(length, ms));
-                            }
+                            MobSkillType type = MobSkillType.from(skillid).orElseThrow();
+                            MobSkill ms = MobSkillFactory.getMobSkillOrThrow(type, skilllv);
+                            loadedDiseases.put(disease, new Pair<>(length, ms));
                         }
                     }
                 }
@@ -7427,10 +7303,18 @@ public class Character extends AbstractCharacterObject {
                         }
                     }
                 }
-
+                
                 ret.buddylist.loadFromDb(charid);
                 ret.storage = wserv.getAccountStorage(ret.accountid);
 
+                /* Double-check storage incase player is first time on server
+                 * The storage won't exist so nothing to load
+                 */
+                if(ret.storage == null) {
+                    wserv.loadAccountStorage(ret.accountid);
+                    ret.storage = wserv.getAccountStorage(ret.accountid);
+                }
+                
                 int startHp = ret.hp, startMp = ret.mp;
                 ret.reapplyLocalStats();
                 ret.changeHpMp(startHp, startMp, true);
@@ -7846,6 +7730,7 @@ public class Character extends AbstractCharacterObject {
             if (job.isA(Job.THIEF) || job.isA(Job.BOWMAN) || job.isA(Job.PIRATE) || job.isA(Job.NIGHTWALKER1) || job.isA(Job.WINDARCHER1)) {
                 Item weapon_item = getInventory(InventoryType.EQUIPPED).getItem((short) -11);
                 if (weapon_item != null) {
+                    ItemInformationProvider ii = ItemInformationProvider.getInstance();
                     WeaponType weapon = ii.getWeaponType(weapon_item.getItemId());
                     boolean bow = weapon == WeaponType.BOW;
                     boolean crossbow = weapon == WeaponType.CROSSBOW;
@@ -8132,8 +8017,9 @@ public class Character extends AbstractCharacterObject {
                         ps.setInt(2, e.getKey().ordinal());
 
                         MobSkill ms = e.getValue().getRight();
-                        ps.setInt(3, ms.getSkillId());
-                        ps.setInt(4, ms.getSkillLevel());
+                        MobSkillId msId = ms.getId();
+                        ps.setInt(3, msId.type().getId());
+                        ps.setInt(4, msId.level());
                         ps.setInt(5, e.getValue().getLeft().intValue());
                         ps.addBatch();
                     }
@@ -8321,7 +8207,7 @@ public class Character extends AbstractCharacterObject {
                         ps.executeBatch();
                     }
                 }
-
+                
                 con.commit();
                 return true;
             } catch (Exception e) {
@@ -8812,22 +8698,6 @@ public class Character extends AbstractCharacterObject {
         return skillMacros;
     }
 
-    public void sendNote(String to, String msg, byte fame) throws SQLException {
-        sendNote(to, this.getName(), msg, fame);
-    }
-
-    public static void sendNote(String to, String from, String msg, byte fame) throws SQLException {
-        try (Connection con = DatabaseConnection.getConnection();
-             PreparedStatement ps = con.prepareStatement("INSERT INTO notes (`to`, `from`, `message`, `timestamp`, `fame`) VALUES (?, ?, ?, ?, ?)", Statement.RETURN_GENERATED_KEYS)) {
-            ps.setString(1, to);
-            ps.setString(2, from);
-            ps.setString(3, msg);
-            ps.setLong(4, Server.getInstance().getCurrentTime());
-            ps.setByte(5, fame);
-            ps.executeUpdate();
-        }
-    }
-
     public static void setAriantRoomLeader(int room, String charname) {
         ariantroomleader[room] = charname;
     }
@@ -9014,11 +8884,7 @@ public class Character extends AbstractCharacterObject {
         boolean playerDied = false;
         if (hp <= 0) {
             if (oldHp > hp) {
-                if (!isBuybackInvincible()) {
-                    playerDied = true;
-                } else {
-                    hp = 1;
-                }
+                playerDied = true;
             }
         }
 
@@ -9239,20 +9105,6 @@ public class Character extends AbstractCharacterObject {
         }
     }
 
-    public void changeName(String name) {
-        FredrickProcessor.removeFredrickReminders(this.getId());
-
-        this.name = name;
-        try (Connection con = DatabaseConnection.getConnection();
-             PreparedStatement ps = con.prepareStatement("UPDATE `characters` SET `name` = ? WHERE `id` = ?")) {
-            ps.setString(1, name);
-            ps.setInt(2, id);
-            ps.executeUpdate();
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-    }
-
     public int getDoorSlot() {
         if (doorSlot != -1) {
             return doorSlot;
@@ -9339,242 +9191,6 @@ public class Character extends AbstractCharacterObject {
         }
     }
 
-    public int sellAllItemsFromName(byte invTypeId, String name) {
-        //player decides from which inventory items should be sold.
-        InventoryType type = InventoryType.getByType(invTypeId);
-
-        Inventory inv = getInventory(type);
-        inv.lockInventory();
-        try {
-            Item it = inv.findByName(name);
-            if (it == null) {
-                return (-1);
-            }
-
-            return (sellAllItemsFromPosition(ii, type, it.getPosition()));
-        } finally {
-            inv.unlockInventory();
-        }
-    }
-
-    public int sellAllItemsFromPosition(ItemInformationProvider ii, InventoryType type, short pos) {
-        int mesoGain = 0;
-
-        Inventory inv = getInventory(type);
-        inv.lockInventory();
-        try {
-            for (short i = pos; i <= inv.getSlotLimit(); i++) {
-                if (inv.getItem(i) == null) {
-                    continue;
-                }
-                mesoGain += standaloneSell(getClient(), ii, type, i, inv.getItem(i).getQuantity());
-            }
-        } finally {
-            inv.unlockInventory();
-        }
-
-        return (mesoGain);
-    }
-
-    private int standaloneSell(Client c, ItemInformationProvider ii, InventoryType type, short slot, short quantity) {
-        if (quantity == 0xFFFF || quantity == 0) {
-            quantity = 1;
-        }
-
-        Inventory inv = getInventory(type);
-        inv.lockInventory();
-        try {
-            Item item = inv.getItem(slot);
-            if (item == null) { //Basic check
-                return (0);
-            }
-
-            int itemid = item.getItemId();
-            if (ItemConstants.isRechargeable(itemid)) {
-                quantity = item.getQuantity();
-            } else if (ItemId.isWeddingToken(itemid) || ItemId.isWeddingRing(itemid)) {
-                return (0);
-            }
-
-            if (quantity < 0) {
-                return (0);
-            }
-            short iQuant = item.getQuantity();
-            if (iQuant == 0xFFFF) {
-                iQuant = 1;
-            }
-
-            if (quantity <= iQuant && iQuant > 0) {
-                InventoryManipulator.removeFromSlot(c, type, (byte) slot, quantity, false);
-                int recvMesos = ii.getPrice(itemid, quantity);
-                if (recvMesos > 0) {
-                    gainMeso(recvMesos, false);
-                    return (recvMesos);
-                }
-            }
-
-            return (0);
-        } finally {
-            inv.unlockInventory();
-        }
-    }
-
-    private static boolean hasMergeFlag(Item item) {
-        return (item.getFlag() & ItemConstants.MERGE_UNTRADEABLE) == ItemConstants.MERGE_UNTRADEABLE;
-    }
-
-    private static void setMergeFlag(Item item) {
-        short flag = item.getFlag();
-        flag |= ItemConstants.MERGE_UNTRADEABLE;
-        flag |= ItemConstants.UNTRADEABLE;
-        item.setFlag(flag);
-    }
-
-    private List<Equip> getUpgradeableEquipped() {
-        List<Equip> list = new LinkedList<>();
-
-        for (Item item : getInventory(InventoryType.EQUIPPED)) {
-            if (ii.isUpgradeable(item.getItemId())) {
-                list.add((Equip) item);
-            }
-        }
-
-        return list;
-    }
-
-    private static List<Equip> getEquipsWithStat(List<Pair<Equip, Map<StatUpgrade, Short>>> equipped, StatUpgrade stat) {
-        List<Equip> equippedWithStat = new LinkedList<>();
-
-        for (Pair<Equip, Map<StatUpgrade, Short>> eq : equipped) {
-            if (eq.getRight().containsKey(stat)) {
-                equippedWithStat.add(eq.getLeft());
-            }
-        }
-
-        return equippedWithStat;
-    }
-
-    public boolean mergeAllItemsFromName(String name) {
-        InventoryType type = InventoryType.EQUIP;
-
-        Inventory inv = getInventory(type);
-        inv.lockInventory();
-        try {
-            Item it = inv.findByName(name);
-            if (it == null) {
-                return false;
-            }
-
-            Map<StatUpgrade, Float> statups = new LinkedHashMap<>();
-            mergeAllItemsFromPosition(statups, it.getPosition());
-
-            List<Pair<Equip, Map<StatUpgrade, Short>>> upgradeableEquipped = new LinkedList<>();
-            Map<Equip, List<Pair<StatUpgrade, Integer>>> equipUpgrades = new LinkedHashMap<>();
-            for (Equip eq : getUpgradeableEquipped()) {
-                upgradeableEquipped.add(new Pair<>(eq, eq.getStats()));
-                equipUpgrades.put(eq, new LinkedList<Pair<StatUpgrade, Integer>>());
-            }
-
-            /*
-            for (Entry<StatUpgrade, Float> es : statups.entrySet()) {
-                System.out.println(es);
-            }
-            */
-
-            for (Entry<StatUpgrade, Float> e : statups.entrySet()) {
-                Double ev = Math.sqrt(e.getValue());
-
-                Set<Equip> extraEquipped = new LinkedHashSet<>(equipUpgrades.keySet());
-                List<Equip> statEquipped = getEquipsWithStat(upgradeableEquipped, e.getKey());
-                float extraRate = (float) (0.2 * Math.random());
-
-                if (!statEquipped.isEmpty()) {
-                    float statRate = 1.0f - extraRate;
-
-                    int statup = (int) Math.ceil((ev * statRate) / statEquipped.size());
-                    for (Equip statEq : statEquipped) {
-                        equipUpgrades.get(statEq).add(new Pair<>(e.getKey(), statup));
-                        extraEquipped.remove(statEq);
-                    }
-                }
-
-                if (!extraEquipped.isEmpty()) {
-                    int statup = (int) Math.round((ev * extraRate) / extraEquipped.size());
-                    if (statup > 0) {
-                        for (Equip extraEq : extraEquipped) {
-                            equipUpgrades.get(extraEq).add(new Pair<>(e.getKey(), statup));
-                        }
-                    }
-                }
-            }
-
-            dropMessage(6, "EQUIPMENT MERGE operation results:");
-            for (Entry<Equip, List<Pair<StatUpgrade, Integer>>> eqpUpg : equipUpgrades.entrySet()) {
-                List<Pair<StatUpgrade, Integer>> eqpStatups = eqpUpg.getValue();
-                if (!eqpStatups.isEmpty()) {
-                    Equip eqp = eqpUpg.getKey();
-                    setMergeFlag(eqp);
-
-                    String showStr = " '" + ItemInformationProvider.getInstance().getName(eqp.getItemId()) + "': ";
-                    String upgdStr = eqp.gainStats(eqpStatups).getLeft();
-
-                    this.forceUpdateItem(eqp);
-
-                    showStr += upgdStr;
-                    dropMessage(6, showStr);
-                }
-            }
-
-            return true;
-        } finally {
-            inv.unlockInventory();
-        }
-    }
-
-    public void mergeAllItemsFromPosition(Map<StatUpgrade, Float> statups, short pos) {
-        Inventory inv = getInventory(InventoryType.EQUIP);
-        inv.lockInventory();
-        try {
-            for (short i = pos; i <= inv.getSlotLimit(); i++) {
-                standaloneMerge(statups, getClient(), InventoryType.EQUIP, i, inv.getItem(i));
-            }
-        } finally {
-            inv.unlockInventory();
-        }
-    }
-
-    private void standaloneMerge(Map<StatUpgrade, Float> statups, Client c, InventoryType type, short slot, Item item) {
-        short quantity;
-        if (item == null || (quantity = item.getQuantity()) < 1 || ii.isCash(item.getItemId()) || !ii.isUpgradeable(item.getItemId()) || hasMergeFlag(item)) {
-            return;
-        }
-
-        Equip e = (Equip) item;
-        for (Entry<StatUpgrade, Short> s : e.getStats().entrySet()) {
-            Float newVal = statups.get(s.getKey());
-
-            float incVal = s.getValue().floatValue();
-            switch (s.getKey()) {
-                case incPAD:
-                case incMAD:
-                case incPDD:
-                case incMDD:
-                    incVal = (float) Math.log(incVal);
-                    break;
-            }
-
-            if (newVal != null) {
-                newVal += incVal;
-            } else {
-                newVal = incVal;
-            }
-
-            statups.put(s.getKey(), newVal);
-        }
-
-        InventoryManipulator.removeFromSlot(c, type, (byte) slot, quantity, false);
-    }
-
     public void setShop(Shop shop) {
         this.shop = shop;
     }
@@ -9639,7 +9255,7 @@ public class Character extends AbstractCharacterObject {
             String medal = "";
             Item medalItem = mapOwner.getInventory(InventoryType.EQUIPPED).getItem((short) -49);
             if (medalItem != null) {
-                medal = "<" + ii.getName(medalItem.getItemId()) + "> ";
+                medal = "<" + ItemInformationProvider.getInstance().getName(medalItem.getItemId()) + "> ";
             }
 
             List<String> strLines = new LinkedList<>();
@@ -9658,21 +9274,6 @@ public class Character extends AbstractCharacterObject {
 
     public void showHint(String msg, int length) {
         client.announceHint(msg, length);
-    }
-
-    public void showNote() {
-        try (Connection con = DatabaseConnection.getConnection();
-             PreparedStatement ps = con.prepareStatement("SELECT * FROM notes WHERE `to` = ? AND `deleted` = 0", ResultSet.TYPE_SCROLL_SENSITIVE, ResultSet.CONCUR_UPDATABLE)) {
-            ps.setString(1, this.getName());
-            try (ResultSet rs = ps.executeQuery()) {
-                rs.last();
-                int count = rs.getRow();
-                rs.first();
-                sendPacket(PacketCreator.showNotes(rs, count));
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
     }
 
     public void silentGiveBuffs(List<Pair<Long, PlayerBuffValueHolder>> buffs) {
@@ -10377,6 +9978,7 @@ public class Character extends AbstractCharacterObject {
         }
 
         Collection<Item> eqpList = new LinkedHashSet<>();
+        ItemInformationProvider ii = ItemInformationProvider.getInstance();
         for (Item it : fullList) {
             if (!ii.isCash(it.getItemId())) {
                 eqpList.add(it);
@@ -10392,6 +9994,7 @@ public class Character extends AbstractCharacterObject {
                 expGain = Integer.MAX_VALUE;
             }
 
+            ItemInformationProvider ii = ItemInformationProvider.getInstance();
             for (Item item : getUpgradeableEquipList()) {
                 Equip nEquip = (Equip) item;
                 String itemName = ii.getName(nEquip.getItemId());
@@ -10407,6 +10010,7 @@ public class Character extends AbstractCharacterObject {
     public void showAllEquipFeatures() {
         String showMsg = "";
 
+        ItemInformationProvider ii = ItemInformationProvider.getInstance();
         for (Item item : getInventory(InventoryType.EQUIPPED).list()) {
             Equip nEquip = (Equip) item;
             String itemName = ii.getName(nEquip.getItemId());
@@ -11115,60 +10719,6 @@ public class Character extends AbstractCharacterObject {
         } catch (SQLException e) {
             e.printStackTrace();
         }
-    }
-
-    public void setReborns(int value) {
-        if (!YamlConfig.config.server.USE_REBIRTH_SYSTEM) {
-            yellowMessage("Rebirth system is not enabled!");
-            throw new NotEnabledException();
-        }
-
-        try (Connection con = DatabaseConnection.getConnection();
-             PreparedStatement ps = con.prepareStatement("UPDATE characters SET reborns=? WHERE id=?;")) {
-            ps.setInt(1, value);
-            ps.setInt(2, id);
-            ps.executeUpdate();
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-    }
-
-    public void addReborns() {
-        setReborns(getReborns() + 1);
-    }
-
-    public int getReborns() {
-        if (!YamlConfig.config.server.USE_REBIRTH_SYSTEM) {
-            yellowMessage("Rebirth system is not enabled!");
-            throw new NotEnabledException();
-        }
-
-        try (Connection con = DatabaseConnection.getConnection();
-             PreparedStatement ps = con.prepareStatement("SELECT reborns FROM characters WHERE id=?;")) {
-            ps.setInt(1, id);
-
-            try (ResultSet rs = ps.executeQuery()) {
-                rs.next();
-                return rs.getInt(1);
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-        throw new RuntimeException();
-    }
-
-    public void executeReborn() {
-        if (!YamlConfig.config.server.USE_REBIRTH_SYSTEM) {
-            yellowMessage("Rebirth system is not enabled!");
-            throw new NotEnabledException();
-        }
-        if (getLevel() != 200) {
-            return;
-        }
-        addReborns();
-        changeJob(Job.BEGINNER);
-        setLevel(0);
-        levelUp(true);
     }
 
     //EVENTS

@@ -3,9 +3,22 @@ package tools.mapletools;
 import provider.wz.WZFiles;
 import tools.Pair;
 
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
-import java.util.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * @author RonanLana
@@ -14,7 +27,7 @@ import java.util.*;
  * throughout the map tree (area map -> continent map -> world map) but are currently missing.
  */
 public class WorldmapChecker {
-    private static final File OUTPUT_FILE = ToolConstants.getOutputFile("worldmap_report.txt");
+    private static final Path OUTPUT_FILE = ToolConstants.getOutputFile("worldmap_report.txt");
     private static final int INITIAL_STRING_LENGTH = 50;
     private static final Map<String, Set<Integer>> worldMapids = new HashMap<>();
     private static final Map<String, String> parentWorldmaps = new HashMap<>();
@@ -186,8 +199,8 @@ public class WorldmapChecker {
     }
 
     private static void verifyWorldmapTreeMapids() {
-        try {
-            printWriter = new PrintWriter(OUTPUT_FILE, StandardCharsets.UTF_8);
+        try (PrintWriter pw = new PrintWriter(Files.newOutputStream(OUTPUT_FILE))) {
+            printWriter = pw;
             printReportFileHeader();
 
             if (rootWorldmaps.size() > 1) {
@@ -242,7 +255,6 @@ public class WorldmapChecker {
                 printReportFileResults(unreferencedEntries);
             }
 
-            printWriter.close();
         } catch (Exception e) {
             e.printStackTrace();
         }

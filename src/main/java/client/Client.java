@@ -36,18 +36,19 @@ import net.packet.Packet;
 import net.packet.logging.LoggingUtil;
 import net.packet.logging.MonitoredChrLogger;
 import net.server.Server;
-import net.server.audit.locks.MonitoredLockType;
-import net.server.audit.locks.factory.MonitoredReentrantLockFactory;
 import net.server.channel.Channel;
 import net.server.coordinator.login.LoginBypassCoordinator;
 import net.server.coordinator.session.Hwid;
-import net.server.coordinator.session.IpAddresses;
 import net.server.coordinator.session.SessionCoordinator;
 import net.server.coordinator.session.SessionCoordinator.AntiMulticlientResult;
 import net.server.guild.Guild;
 import net.server.guild.GuildCharacter;
 import net.server.guild.GuildPackets;
-import net.server.world.*;
+import net.server.world.MessengerCharacter;
+import net.server.world.Party;
+import net.server.world.PartyCharacter;
+import net.server.world.PartyOperation;
+import net.server.world.World;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import scripting.AbstractPlayerInteraction;
@@ -76,11 +77,26 @@ import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.sql.*;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Timestamp;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Calendar;
+import java.util.Collections;
 import java.util.Date;
-import java.util.*;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
 
@@ -122,9 +138,9 @@ public class Client extends ChannelInboundHandlerAdapter {
     private byte gender = -1;
     private boolean disconnecting = false;
     private final Semaphore actionsSemaphore = new Semaphore(7);
-    private final Lock lock = MonitoredReentrantLockFactory.createLock(MonitoredLockType.CLIENT, true);
-    private final Lock encoderLock = MonitoredReentrantLockFactory.createLock(MonitoredLockType.CLIENT_ENCODER, true);
-    private final Lock announcerLock = MonitoredReentrantLockFactory.createLock(MonitoredLockType.CLIENT_ANNOUNCER, true);
+    private final Lock lock = new ReentrantLock(true);
+    private final Lock encoderLock = new ReentrantLock(true);
+    private final Lock announcerLock = new ReentrantLock(true);
     // thanks Masterrulax & try2hack for pointing out a bottleneck issue with shared locks, shavit for noticing an opportunity for improvement
     private Calendar tempBanCalendar;
     private int votePoints;
@@ -177,10 +193,7 @@ public class Client extends ChannelInboundHandlerAdapter {
     private static String getRemoteAddress(io.netty.channel.Channel channel) {
         String remoteAddress = "null";
         try {
-            String hostAddress = ((InetSocketAddress) channel.remoteAddress()).getAddress().getHostAddress();
-            if (hostAddress != null) {
-                remoteAddress = IpAddresses.evaluateRemoteAddress(hostAddress); // thanks dyz for noticing Local/LAN/WAN connections not interacting properly
-            }
+            remoteAddress = ((InetSocketAddress) channel.remoteAddress()).getAddress().getHostAddress();
         } catch (NullPointerException npe) {
             log.warn("Unable to get remote address for client", npe);
         }
@@ -940,6 +953,10 @@ public class Client extends ChannelInboundHandlerAdapter {
                 if (MapId.isDojo(mapId)) {
                     this.getChannelServer().freeDojoSectionIfEmpty(mapId);
                 }
+                
+                if (player.getMap().getHPDec() > 0) {
+                    getWorldServer().removePlayerHpDecrease(player);
+                }
             }
 
         } catch (final Throwable t) {
@@ -1501,7 +1518,6 @@ public class Client extends ChannelInboundHandlerAdapter {
 
         player.getInventory(InventoryType.EQUIPPED).checked(false); //test
         player.getMap().removePlayer(player);
-        player.clearBanishPlayerData();
         player.getClient().getChannelServer().removePlayer(player);
 
         player.saveCharToDB();

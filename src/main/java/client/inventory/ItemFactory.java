@@ -20,15 +20,18 @@
  */
 package client.inventory;
 
-import net.server.audit.locks.MonitoredLockType;
-import net.server.audit.locks.factory.MonitoredReentrantLockFactory;
 import tools.DatabaseConnection;
 import tools.Pair;
 
-import java.sql.*;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * @author Flav
@@ -52,7 +55,7 @@ public enum ItemFactory {
 
     static {
         for (int i = 0; i < lockCount; i++) {
-            locks[i] = MonitoredReentrantLockFactory.createLock(MonitoredLockType.ITEM, true);
+            locks[i] = new ReentrantLock(true);
         }
     }
 

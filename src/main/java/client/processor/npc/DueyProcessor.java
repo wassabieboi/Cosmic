@@ -45,7 +45,12 @@ import tools.DatabaseConnection;
 import tools.PacketCreator;
 import tools.Pair;
 
-import java.sql.*;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.sql.Timestamp;
 import java.util.Calendar;
 import java.util.Collections;
 import java.util.LinkedList;
@@ -92,14 +97,15 @@ public class DueyProcessor {
     }
 
     private static Pair<Integer, Integer> getAccountCharacterIdFromCNAME(String name) {
-        Pair<Integer, Integer> ids = null;
+        Pair<Integer, Integer> ids = new Pair<>(-1, -1);
         try (Connection con = DatabaseConnection.getConnection();
              PreparedStatement ps = con.prepareStatement("SELECT id,accountid FROM characters WHERE name = ?")) {
             ps.setString(1, name);
 
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) {
-                    ids = new Pair<>(rs.getInt("accountid"), rs.getInt("id"));
+                    ids.left = rs.getInt("accountid");
+                    ids.right = rs.getInt("id");
                 }
             }
         } catch (SQLException e) {
@@ -284,7 +290,20 @@ public class DueyProcessor {
     public static void dueySendItem(Client c, byte invTypeId, short itemPos, short amount, int sendMesos, String sendMessage, String recipient, boolean quick) {
         if (c.tryacquireClient()) {
             try {
+                if (c.getPlayer().isGM() && c.getPlayer().gmLevel() < YamlConfig.config.server.MINIMUM_GM_LEVEL_TO_USE_DUEY) {
+                    c.getPlayer().message("You cannot use Duey to send items at your GM level.");
+                    log.info(String.format("GM %s tried to send a package to %s", c.getPlayer().getName(), recipient));
+                    c.sendPacket(PacketCreator.sendDueyMSG(DueyProcessor.Actions.TOCLIENT_SEND_INCORRECT_REQUEST.getCode()));
+                    return;
+                }
+
                 int fee = Trade.getFee(sendMesos);
+                if (sendMessage != null && sendMessage.length() > 100) {
+                    AutobanFactory.PACKET_EDIT.alert(c.getPlayer(), c.getPlayer().getName() + " tried to packet edit with Quick Delivery on duey.");
+                    log.warn("Chr {} tried to use duey with too long of a text", c.getPlayer().getName());
+                    c.disconnect(true, false);
+                    return;
+                }
                 if (!quick) {
                     fee += 5000;
                 } else if (!c.getPlayer().haveItem(ItemId.QUICK_DELIVERY_TICKET)) {
@@ -302,27 +321,22 @@ public class DueyProcessor {
                     return;
                 }
 
-                Pair<Integer, Integer> accIdCid;
-                if (c.getPlayer().getMeso() >= finalcost) {
-                    accIdCid = getAccountCharacterIdFromCNAME(recipient);
-                    int recipientAccId = accIdCid.getLeft();
-                    if (recipientAccId != -1) {
-                        if (recipientAccId == c.getAccID()) {
-                            c.sendPacket(PacketCreator.sendDueyMSG(DueyProcessor.Actions.TOCLIENT_SEND_SAMEACC_ERROR.getCode()));
-                            return;
-                        }
-                    } else {
-                        c.sendPacket(PacketCreator.sendDueyMSG(DueyProcessor.Actions.TOCLIENT_SEND_NAME_DOES_NOT_EXIST.getCode()));
-                        return;
-                    }
-                } else {
+                if(c.getPlayer().getMeso() < finalcost) {
                     c.sendPacket(PacketCreator.sendDueyMSG(DueyProcessor.Actions.TOCLIENT_SEND_NOT_ENOUGH_MESOS.getCode()));
                     return;
                 }
 
-                int recipientCid = accIdCid.getRight();
-                if (recipientCid == -1) {
+                var accIdCid = getAccountCharacterIdFromCNAME(recipient);
+                var recipientAccId = accIdCid.getLeft();
+                var recipientCid = accIdCid.getRight();
+
+                if (recipientAccId == -1 || recipientCid == -1) {
                     c.sendPacket(PacketCreator.sendDueyMSG(DueyProcessor.Actions.TOCLIENT_SEND_NAME_DOES_NOT_EXIST.getCode()));
+                    return;
+                }
+
+                if (recipientAccId == c.getAccID()) {
+                    c.sendPacket(PacketCreator.sendDueyMSG(DueyProcessor.Actions.TOCLIENT_SEND_SAMEACC_ERROR.getCode()));
                     return;
                 }
 

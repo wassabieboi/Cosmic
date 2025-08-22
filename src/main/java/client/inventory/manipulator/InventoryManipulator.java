@@ -24,7 +24,12 @@ package client.inventory.manipulator;
 import client.BuffStat;
 import client.Character;
 import client.Client;
-import client.inventory.*;
+import client.inventory.Equip;
+import client.inventory.Inventory;
+import client.inventory.InventoryType;
+import client.inventory.Item;
+import client.inventory.ModifyInventory;
+import client.inventory.Pet;
 import client.newyear.NewYearCardRecord;
 import config.YamlConfig;
 import constants.id.ItemId;
@@ -538,7 +543,8 @@ public class InventoryManipulator {
 
             itemChanged = true;
         }
-        if (dst == -6) { // unequip the overall
+        switch (dst) {
+        case -6: // unequip the overall
             Item top = eqpdInv.getItem((short) -5);
             if (top != null && ItemConstants.isOverall(top.getItemId())) {
                 if (eqpInv.isFull()) {
@@ -548,7 +554,8 @@ public class InventoryManipulator {
                 }
                 unequip(c, (byte) -5, eqpInv.getNextFreeSlot());
             }
-        } else if (dst == -5) {
+            break;
+        case -5:
             final Item bottom = eqpdInv.getItem((short) -6);
             if (bottom != null && ItemConstants.isOverall(source.getItemId())) {
                 if (eqpInv.isFull()) {
@@ -558,7 +565,8 @@ public class InventoryManipulator {
                 }
                 unequip(c, (byte) -6, eqpInv.getNextFreeSlot());
             }
-        } else if (dst == -10) {// check if weapon is two-handed
+            break;
+        case -10: // check if weapon is two-handed
             Item weapon = eqpdInv.getItem((short) -11);
             if (weapon != null && ii.isTwoHanded(weapon.getItemId())) {
                 if (eqpInv.isFull()) {
@@ -568,7 +576,8 @@ public class InventoryManipulator {
                 }
                 unequip(c, (byte) -11, eqpInv.getNextFreeSlot());
             }
-        } else if (dst == -11) {
+            break;
+        case -11:
             Item shield = eqpdInv.getItem((short) -10);
             if (shield != null && ii.isTwoHanded(source.getItemId())) {
                 if (eqpInv.isFull()) {
@@ -578,11 +587,12 @@ public class InventoryManipulator {
                 }
                 unequip(c, (byte) -10, eqpInv.getNextFreeSlot());
             }
-        }
-        if (dst == -18) {
+            break;
+        case -18:
             if (chr.getMount() != null) {
                 chr.getMount().setItemId(source.getItemId());
             }
+            break;
         }
 
         //1112413, 1112414, 1112405 (Lilin's Ring)
@@ -700,6 +710,12 @@ public class InventoryManipulator {
         Character chr = c.getPlayer();
         Inventory inv = chr.getInventory(type);
         Item source = inv.getItem(src);
+
+        if (chr.isGM() && chr.gmLevel() < YamlConfig.config.server.MINIMUM_GM_LEVEL_TO_DROP) {
+            chr.message("You cannot drop items at your GM level.");
+            log.info("GM %s tried to drop item id %d", chr.getName(), source.getItemId());
+            return;
+        }
 
         if (chr.getTrade() != null || chr.getMiniGame() != null || source == null) { //Only check needed would prob be merchants (to see if the player is in one)
             return;

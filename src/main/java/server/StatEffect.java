@@ -21,8 +21,13 @@
  */
 package server;
 
+import client.BuffStat;
 import client.Character;
-import client.*;
+import client.Disease;
+import client.Job;
+import client.Mount;
+import client.Skill;
+import client.SkillFactory;
 import client.inventory.Inventory;
 import client.inventory.InventoryType;
 import client.inventory.Item;
@@ -33,7 +38,57 @@ import config.YamlConfig;
 import constants.id.ItemId;
 import constants.id.MapId;
 import constants.inventory.ItemConstants;
-import constants.skills.*;
+import constants.skills.Aran;
+import constants.skills.Assassin;
+import constants.skills.Bandit;
+import constants.skills.Beginner;
+import constants.skills.Bishop;
+import constants.skills.BlazeWizard;
+import constants.skills.Bowmaster;
+import constants.skills.Brawler;
+import constants.skills.Buccaneer;
+import constants.skills.ChiefBandit;
+import constants.skills.Cleric;
+import constants.skills.Corsair;
+import constants.skills.Crossbowman;
+import constants.skills.Crusader;
+import constants.skills.DarkKnight;
+import constants.skills.DawnWarrior;
+import constants.skills.DragonKnight;
+import constants.skills.Evan;
+import constants.skills.FPArchMage;
+import constants.skills.FPMage;
+import constants.skills.FPWizard;
+import constants.skills.Fighter;
+import constants.skills.GM;
+import constants.skills.Gunslinger;
+import constants.skills.Hermit;
+import constants.skills.Hero;
+import constants.skills.Hunter;
+import constants.skills.ILArchMage;
+import constants.skills.ILMage;
+import constants.skills.ILWizard;
+import constants.skills.Legend;
+import constants.skills.Magician;
+import constants.skills.Marauder;
+import constants.skills.Marksman;
+import constants.skills.NightLord;
+import constants.skills.NightWalker;
+import constants.skills.Noblesse;
+import constants.skills.Outlaw;
+import constants.skills.Page;
+import constants.skills.Paladin;
+import constants.skills.Pirate;
+import constants.skills.Priest;
+import constants.skills.Ranger;
+import constants.skills.Rogue;
+import constants.skills.Shadower;
+import constants.skills.Sniper;
+import constants.skills.Spearman;
+import constants.skills.SuperGM;
+import constants.skills.ThunderBreaker;
+import constants.skills.WhiteKnight;
+import constants.skills.WindArcher;
 import net.packet.Packet;
 import net.server.Server;
 import net.server.world.Party;
@@ -42,17 +97,29 @@ import provider.Data;
 import provider.DataTool;
 import server.life.MobSkill;
 import server.life.MobSkillFactory;
+import server.life.MobSkillType;
 import server.life.Monster;
-import server.maps.*;
+import server.maps.Door;
+import server.maps.FieldLimit;
+import server.maps.MapObject;
+import server.maps.MapObjectType;
+import server.maps.MapleMap;
+import server.maps.Mist;
+import server.maps.Portal;
+import server.maps.Summon;
+import server.maps.SummonMovementType;
 import server.partyquest.CarnivalFactory;
 import server.partyquest.CarnivalFactory.MCSkill;
-import tools.ArrayMap;
 import tools.PacketCreator;
 import tools.Pair;
 
 import java.awt.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.EnumMap;
 import java.util.List;
-import java.util.*;
+import java.util.Map;
 
 /**
  * @author Matze
@@ -422,7 +489,7 @@ public class StatEffect {
         ret.itemCon = DataTool.getInt("itemCon", source, 0);
         ret.itemConNo = DataTool.getInt("itemConNo", source, 0);
         ret.moveTo = DataTool.getInt("moveTo", source, -1);
-        Map<MonsterStatus, Integer> monsterStatus = new ArrayMap<>();
+        Map<MonsterStatus, Integer> monsterStatus = new EnumMap<>(MonsterStatus.class);
         if (skill) {
             switch (sourceid) {
                 // BEGINNER
@@ -910,18 +977,8 @@ public class StatEffect {
                 Portal pt;
 
                 if (moveTo == MapId.NONE) {
-                    if (sourceid != ItemId.ANTI_BANISH_SCROLL) {
-                        target = applyto.getMap().getReturnMap();
-                        pt = target.getRandomPlayerSpawnpoint();
-                    } else {
-                        if (!applyto.canRecoverLastBanish()) {
-                            return false;
-                        }
-
-                        Pair<Integer, Integer> lastBanishInfo = applyto.getLastBanishData();
-                        target = applyto.getWarpMap(lastBanishInfo.getLeft());
-                        pt = target.getPortal(lastBanishInfo.getRight());
-                    }
+                    target = applyto.getMap().getReturnMap();
+                    pt = target.getRandomPlayerSpawnpoint();
                 } else {
                     target = applyto.getClient().getWorldServer().getChannel(applyto.getClient().getChannel()).getMapFactory().getMap(moveTo);
                     int targetid = target.getId() / 10000000;
@@ -1039,14 +1096,15 @@ public class StatEffect {
             if (skill != null) {
                 final Disease dis = skill.getDisease();
                 Party opposition = applyfrom.getParty().getEnemy();
-                if (skill.targetsAll) {
+                if (skill.targetsAll()) {
                     for (PartyCharacter enemyChrs : opposition.getPartyMembers()) {
                         Character chrApp = enemyChrs.getPlayer();
                         if (chrApp != null && chrApp.getMap().isCPQMap()) {
                             if (dis == null) {
                                 chrApp.dispel();
                             } else {
-                                chrApp.giveDebuff(dis, MCSkill.getMobSkill(dis.getDisease(), skill.level));
+                                MobSkill mobSkill = MobSkillFactory.getMobSkillOrThrow(dis.getMobSkillType(), skill.level());
+                                chrApp.giveDebuff(dis, mobSkill);
                             }
                         }
                     }
@@ -1058,7 +1116,8 @@ public class StatEffect {
                         if (dis == null) {
                             chrApp.dispel();
                         } else {
-                            chrApp.giveDebuff(dis, MCSkill.getMobSkill(dis.getDisease(), skill.level));
+                            MobSkill mobSkill = MobSkillFactory.getMobSkillOrThrow(dis.getMobSkillType(), skill.level());
+                            chrApp.giveDebuff(dis, mobSkill);
                         }
                     }
                 }
@@ -1068,8 +1127,9 @@ public class StatEffect {
                 applyfrom.dispelDebuff(debuff);
             }
         } else if (mobSkill > 0 && mobSkillLevel > 0) {
-            MobSkill ms = MobSkillFactory.getMobSkill(mobSkill, mobSkillLevel);
-            Disease dis = Disease.getBySkill(mobSkill);
+            MobSkillType mobSkillType = MobSkillType.from(mobSkill).orElseThrow();
+            MobSkill ms = MobSkillFactory.getMobSkillOrThrow(mobSkillType, mobSkillLevel);
+            Disease dis = Disease.getBySkill(mobSkillType);
 
             if (target > 0) {
                 for (Character chr : applyto.getMap().getAllPlayers()) {

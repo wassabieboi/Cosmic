@@ -23,14 +23,15 @@ package scripting;
 
 import client.Client;
 import com.oracle.truffle.js.scriptengine.GraalJSScriptEngine;
-import constants.string.CharsetConstants;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.script.*;
-import java.io.File;
-import java.io.FileReader;
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 /**
  * @author Matze
@@ -44,9 +45,8 @@ public abstract class AbstractScriptManager {
     }
 
     protected ScriptEngine getInvocableScriptEngine(String path) {
-        path = "scripts/" + path;
-        File scriptFile = new File(path);
-        if (!scriptFile.exists()) {
+        Path scriptFile = Path.of("scripts", path);
+        if (!Files.exists(scriptFile)) {
             return null;
         }
 
@@ -57,8 +57,8 @@ public abstract class AbstractScriptManager {
 
         enableScriptHostAccess(graalScriptEngine);
 
-        try (FileReader fr = new FileReader(scriptFile, CharsetConstants.CHARSET)) {
-            engine.eval(fr);
+        try (BufferedReader br = Files.newBufferedReader(scriptFile, StandardCharsets.UTF_8)) {
+            engine.eval(br);
         } catch (final ScriptException | IOException t) {
             log.warn("Exception during script eval for file: {}", path, t);
             return null;

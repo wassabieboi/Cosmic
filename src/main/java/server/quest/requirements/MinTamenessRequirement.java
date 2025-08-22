@@ -51,18 +51,18 @@ public class MinTamenessRequirement extends AbstractQuestRequirement {
 
     @Override
     public boolean check(Character chr, Integer npcid) {
-        int curCloseness = 0;
+        int curTameness = 0;
 
         for (Pet pet : chr.getPets()) {
             if (pet == null) {
                 continue;
             }
 
-            if (pet.getCloseness() > curCloseness) {
-                curCloseness = pet.getCloseness();
+            if (pet.getTameness() > curTameness) {
+                curTameness = pet.getTameness();
             }
         }
 
-        return curCloseness >= minTameness;
+        return curTameness >= minTameness;
     }
 }

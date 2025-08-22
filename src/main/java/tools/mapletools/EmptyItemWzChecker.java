@@ -2,9 +2,23 @@ package tools.mapletools;
 
 import provider.wz.WZFiles;
 
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
-import java.util.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.Stack;
 
 /**
  * @author RonanLana
@@ -14,8 +28,8 @@ import java.util.*;
  * And it removes from the String.wz XMLs all entries which misses properties on Item.wz.
  */
 public class EmptyItemWzChecker {
-    private static final File OUTPUT_FILE = ToolConstants.getOutputFile("empty_item_wz_report.txt");
-    private static final String OUTPUT_PATH = ToolConstants.OUTPUT_DIRECTORY.getPath();
+    private static final Path OUTPUT_FILE = ToolConstants.getOutputFile("empty_item_wz_report.txt");
+    private static final String OUTPUT_PATH = ToolConstants.OUTPUT_DIRECTORY.toString();
     private static final int INITIAL_STRING_LENGTH = 50;
     private static final int ITEM_FILE_NAME_SIZE = 13;
 
@@ -338,12 +352,11 @@ public class EmptyItemWzChecker {
 
     private static void reportItemNameDiff(Set<Integer> emptyItemNames, Set<Integer> emptyNameItems) throws IOException {
         System.out.println("Reporting results...");
-        printWriter = new PrintWriter(OUTPUT_FILE, StandardCharsets.UTF_8);
-
-        printReportFileHeader();
-        printReportFileResults(emptyItemNames, emptyNameItems);
-
-        printWriter.close();
+        try(PrintWriter pw = new PrintWriter(Files.newOutputStream(OUTPUT_FILE))) {
+        	printWriter = pw;
+        	printReportFileHeader();
+            printReportFileResults(emptyItemNames, emptyNameItems);
+        }
     }
 
     private static void locateItemStringWzDiff() throws IOException {
@@ -408,7 +421,7 @@ public class EmptyItemWzChecker {
 
     private static void generateStringWz() throws IOException {
         System.out.println("Generating clean String.wz ...");
-        String[][] stringWzFiles = {{"Cash", "Consume", "Ins", "Pet"}, {"Etc"}, {"Eqp"}};
+        String[][] stringWzFiles = { { "Cash", "Consume", "Ins", "Pet" }, { "Etc" }, { "Eqp" } };
         String stringWzPath = "/String.wz/";
 
         File folder = new File(OUTPUT_PATH + "/String.wz/");

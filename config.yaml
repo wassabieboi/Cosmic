@@ -158,14 +158,11 @@ worlds:
 
 
 server:
-    #Thread Tracker Configuration
-    USE_THREAD_TRACKER: false        #[SEVERE] This deadlock auditing thing will bloat the memory as fast as the time frame one takes to lose track of a raindrop on a tempesting day. Only for debugging purposes.
-
     #Database Configuration
-    DB_URL_FORMAT: "jdbc:mysql://%s:3306/cosmic"
-    DB_HOST: "localhost"
-    DB_USER: "cosmic_server"
-    DB_PASS: "snailshell"
+    DB_URL_FORMAT: "jdbc:mysql://%s:3306/cosmic" # If the docker ENV for DB_HOST is anything but "db", this string format should be changed from 3306 to 3307 (or whichever port it was changed to in docker) 
+    DB_HOST: "localhost" 
+    DB_USER: "root"
+    DB_PASS: ""
     INIT_CONNECTION_POOL_TIMEOUT: 90    # Seconds
 
     #Login Configuration
@@ -223,7 +220,6 @@ server:
     USE_MTS: false
     USE_CPQ: true                       #Renders the CPQ available or not.
     USE_AUTOHIDE_GM: true              #When enabled, GMs are automatically hidden when joining. Thanks to Steven Deblois (steven1152).
-    USE_BUYBACK_SYSTEM: false            #Enables the HeavenMS-builtin buyback system, to be used by dead players when clicking the MTS button.
     USE_FIXED_RATIO_HPMP_UPDATE: false   #Enables the HeavenMS-builtin HPMP update based on the current pool to max pool ratio.
     USE_FAMILY_SYSTEM: true
     USE_DUEY: true
@@ -237,6 +233,7 @@ server:
     USE_STARTING_AP_4: false             #Use early-GMS 4/4/4/4 starting stats. To overcome AP shortage, this gives 4AP/5AP at 1st/2nd job advancements.
     USE_AUTOBAN: false                  #Commands the server to detect infractors automatically.
     USE_AUTOBAN_LOG: true               #Log autoban related messages. Still logs even with USE_AUTOBAN disabled.
+    USE_EXP_GAIN_LOG: false #Logs characters exp gains; logs world rate & coupon exp, total gained exp, and current exp, level can be calculated from "ExpTable".
     USE_AUTOSAVE: true                  #Enables server autosaving feature (saves characters to DB each 1 hour).
     USE_SERVER_AUTOASSIGNER: false       #HeavenMS-builtin autoassigner, uses algorithm based on distributing AP accordingly with required secondary stat on equipments.
     USE_REFRESH_RANK_MOVE: true
@@ -252,7 +249,6 @@ server:
     USE_ENFORCE_MERCHANT_SAVE: true     #Forces automatic DB save on merchant owners, at every item movement on shop.
     USE_ENFORCE_MDOOR_POSITION: false   #Forces mystic door to be spawned near spawnpoints.
     USE_SPAWN_CLEAN_MDOOR: false         #Makes mystic doors to be spawned without deploy animation. This clears disconnecting issues that may happen when trying to cancel doors a couple seconds after deployment.
-    USE_SPAWN_LOOT_ON_ANIMATION: false  #Makes loot appear some time after the mob has been killed (following the mob death animation, instead of instantly).
     USE_SPAWN_RELEVANT_LOOT: true       #Forces to only spawn loots that are collectable by the player or any of their party members.
     USE_ERASE_PERMIT_ON_OPENSHOP: true  #Forces "shop permit" item to be consumed when player deploy his/her player shop.
     USE_ERASE_UNTRADEABLE_DROP: true    #Forces flagged untradeable items to disappear when dropped.
@@ -260,10 +256,8 @@ server:
     USE_BUFF_MOST_SIGNIFICANT: true     #When applying buffs, the player will stick with the highest stat boost among the listed, rather than overwriting stats.
     USE_BUFF_EVERLASTING: false         #Every applied buff on players holds expiration time so high it'd be considered permanent. Suggestion thanks to Vcoc.
     USE_MULTIPLE_SAME_EQUIP_DROP: true  #Enables multiple drops by mobs of the same equipment, number of possible drops based on the quantities provided at the drop data.
-    USE_BANISHABLE_TOWN_SCROLL: false    #Enables town scrolls to act as if it's a "player banish", rendering the antibanish scroll effect available.
     USE_ENABLE_FULL_RESPAWN: false       #At respawn task, always respawn missing mobs when they're available. Spawn count doesn't depend on how many players are currently there.
     USE_ENABLE_CHAT_LOG: false          #Write in-game chat to log
-    USE_REBIRTH_SYSTEM: false           #Flag to enable/disable rebirth system
     USE_MAP_OWNERSHIP_SYSTEM: false      #Flag to enable/disable map ownership system
     USE_FISHING_SYSTEM: false            #Flag to enable/disable custom fishing system
     USE_NPCS_SCRIPTABLE: true           #Flag to enable/disable serverside predefined script NPCs.
@@ -277,6 +271,7 @@ server:
     #Announcement Configuration
     USE_ANNOUNCE_SHOPITEMSOLD: false    #Automatic message sent to owner when an item from the Player Shop or Hired Merchant is sold.
     USE_ANNOUNCE_CHANGEJOB: false       #Automatic message sent to acquantainces when changing jobs.
+    USE_ANNOUNCE_NX_COUPON_LOOT: false    #Enables or disables the floating text when a player loots a NX card
 
     #Cash Shop Configuration
     USE_JOINT_CASHSHOP_INVENTORY: false  #Enables usage of a same cash shop inventory for explorers, cygnus and legends. Items from exclusive cash shop inventories won't show up on the shared inventory, though.
@@ -287,10 +282,6 @@ server:
     #Maker Configuration
     USE_MAKER_PERMISSIVE_ATKUP: false    #Allows players to use attack-based strengthening gems on non-weapon items.
     USE_MAKER_FEE_HEURISTICS: true      #Apply compiled values for stimulants and reagents into the Maker fee calculations (max error revolves around 50k mesos). Set false to use basic constant values instead (results are never higher than requested by the client-side).
-
-    #Custom Configuration
-    USE_ENABLE_CUSTOM_NPC_SCRIPT: false  #Enables usage of custom HeavenMS NPC scripts (Agent E, Coco, etc). Will not disable Abdula (it's actually useful for the gameplay) or quests.
-    USE_STARTER_MERGE: false            #Allows any players to use the Equipment Merge custom mechanic (as opposed to the high-level, Maker lv3 requisites).
 
     #Commands Configuration
     BLOCK_GENERATE_CASH_ITEM: false     #Prevents creation of cash items with the item/drop command.
@@ -320,7 +311,6 @@ server:
     NAME_CHANGE_COOLDOWN: 2592000000      # (30*24*60*60*1000) Cooldown for name changes, default (GMS) is 30 days.
     WORLD_TRANSFER_COOLDOWN: 2592000000  # (30*24*60*60*1000) Cooldown for world tranfers, default is same as name change (30 days).
     INSTANT_NAME_CHANGE: false              #Whether or not to wait for server restart to apply name changes. Does on reconnect otherwise (requires queries on every login).
-    REBIRTH_NPC_ID: 9010021                 #ID of the NPC that should be replaced with the rebirth mechanic, if enabled.
 
     #Dangling Items/Locks Configuration
     ITEM_EXPIRE_TIME: 180000    # (3 * 60 * 1000) Time before items start disappearing. Recommended to be set up to 3 minutes.
@@ -332,7 +322,8 @@ server:
     ITEM_EXPIRE_CHECK: 10000        # (10 * 10000) Interval between item expiring tasks on maps, which checks and makes disappear expired items.
     ITEM_LIMIT_ON_MAP: 200              #Max number of items allowed on a map.
     MAP_VISITED_SIZE: 5                 #Max length for last mapids visited by a player. This is used to recover and update drops on these maps accordingly with player actions.
-    MAP_DAMAGE_OVERTIME_INTERVAL: 5000  #Interval in milliseconds between map environment damage (e.g. El Nath and Aqua Road surrondings).
+    MAP_DAMAGE_OVERTIME_INTERVAL: 2500  #Interval in milliseconds between map environment damage (e.g. El Nath and Aqua Road surrondings).
+    MAP_DAMAGE_OVERTIME_COUNT: 2
 
     #Channel Mob Disease Monitor Configuration
     MOB_STATUS_MONITOR_PROC: 200        #Frequency in milliseconds between each proc on the mob disease monitor schedule.
@@ -347,10 +338,9 @@ server:
     USE_PERFECT_SCROLLING: false     #Scrolls doesn't use slots upon failure.
     USE_ENHANCED_CHSCROLL: false     #Equips even more powerful with chaos upgrade.
     USE_ENHANCED_CRAFTING: false     #Apply chaos scroll on every equip crafted.
-    USE_ENHANCED_CLNSLATE: false     #Clean slates can be applied to recover successfully used slots as well.
     SCROLL_CHANCE_ROLLS: 1         #Number of rolls for success on a scroll, set 1 for default.
     CHSCROLL_STAT_RATE: 1               #Number of rolls of stat upgrade on a successfully applied chaos scroll, set 1 for default.
-    CHSCROLL_STAT_RANGE: 6              #Stat upgrade range (-N, N) on chaos scrolls.
+    CHSCROLL_STAT_RANGE: 5              #Stat upgrade range (-N, N) on chaos scrolls.
 
     #Beginner Skills Configuration
     USE_ULTRA_NIMBLE_FEET: false     #Massive speed & jump upgrade.
@@ -397,7 +387,6 @@ server:
     USE_EQUIPMNT_LVLUP_SLOTS: false  #Equips can upgrade slots at level up.
     USE_EQUIPMNT_LVLUP_POWER: false  #Enable more powerful stat upgrades at equip level up.
     USE_EQUIPMNT_LVLUP_CASH: false   #Enable equip leveling up on cash equipments as well.
-    USE_SPIKES_AVOID_BANISH: false   #Shoes equipped with spikes prevents mobs from banishing wearer.
     MAX_EQUIPMNT_LVLUP_STAT_UP: 10000   #Max stat upgrade an equipment can have on a levelup.
     MAX_EQUIPMNT_STAT: 32767            #Max stat on an equipment by leveling up.
     USE_EQUIPMNT_LVLUP: 1               #All equips lvlup at max level of N, set 1 to disable.
@@ -448,19 +437,17 @@ server:
     WEDDING_GIFT_LIMIT: 1               #Max number of gifts per person to same wishlist on marriage instances.
     WEDDING_BLESSER_SHOWFX: true    #Pops bubble sprite effect on players blessing the couple. Setting this false shows the blessing effect on the couple instead.
 
-    #Buyback Configuration
-    USE_BUYBACK_WITH_MESOS: true    #Enables usage of either mesos or NX for the buyback fee.
-    BUYBACK_FEE: 77.70               #Sets the base amount needed to buyback (level 30 or under will use the base value).
-    BUYBACK_LEVEL_STACK_FEE: 85.47   #Sets the level-stacking portion of the amount needed to buyback (fee will sum up linearly until level 120, when it reaches the peak).
-    BUYBACK_MESO_MULTIPLIER: 1000       #Sets a multiplier for the fee when using meso as the charge unit.
-    BUYBACK_RETURN_MINUTES: 1           #Sets the maximum amount of time the player can wait before decide to buyback.
-    BUYBACK_COOLDOWN_MINUTES: 7         #Sets the time the player must wait before using buyback again.
-
     # Login timeout by shavit
     TIMEOUT_DURATION: 3600000               # Kicks clients who don't send any packet to the game server in due time (in millisseconds).
 
     #Event End Timestamp
     EVENT_END_TIMESTAMP: 1428897600000
+
+    # GM Security Configuration
+    MINIMUM_GM_LEVEL_TO_TRADE: 4
+    MINIMUM_GM_LEVEL_TO_USE_STORAGE: 4
+    MINIMUM_GM_LEVEL_TO_USE_DUEY: 4
+    MINIMUM_GM_LEVEL_TO_DROP: 4
 
     #Any NPC ids that should search for a js override script (useful if they already have wz entries since otherwise they're ignored).
     NPCS_SCRIPTABLE:

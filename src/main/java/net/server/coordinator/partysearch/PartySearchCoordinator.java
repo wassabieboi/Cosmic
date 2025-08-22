@@ -23,12 +23,6 @@ import client.Character;
 import client.Job;
 import config.YamlConfig;
 import constants.id.MapId;
-import net.server.audit.locks.MonitoredLockType;
-import net.server.audit.locks.MonitoredReadLock;
-import net.server.audit.locks.MonitoredReentrantReadWriteLock;
-import net.server.audit.locks.MonitoredWriteLock;
-import net.server.audit.locks.factory.MonitoredReadLockFactory;
-import net.server.audit.locks.factory.MonitoredWriteLockFactory;
 import net.server.coordinator.world.InviteCoordinator;
 import net.server.coordinator.world.InviteCoordinator.InviteType;
 import net.server.world.Party;
@@ -39,8 +33,17 @@ import provider.wz.WZFiles;
 import tools.PacketCreator;
 import tools.Pair;
 
-import java.util.*;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
  * @author Ronan
@@ -51,9 +54,8 @@ public class PartySearchCoordinator {
     private final Map<Job, PartySearchEchelon> upcomers = new HashMap<>();
 
     private final List<Character> leaderQueue = new LinkedList<>();
-    private final MonitoredReentrantReadWriteLock leaderQueueLock = new MonitoredReentrantReadWriteLock(MonitoredLockType.WORLD_PARTY_SEARCH_QUEUE, true);
-    private final MonitoredReadLock leaderQueueRLock = MonitoredReadLockFactory.createLock(leaderQueueLock);
-    private final MonitoredWriteLock leaderQueueWLock = MonitoredWriteLockFactory.createLock(leaderQueueLock);
+    private final Lock leaderQueueRLock;
+    private final Lock leaderQueueWLock;
 
     private final Map<Integer, Character> searchLeaders = new HashMap<>();
     private final Map<Integer, LeaderSearchMetadata> searchSettings = new HashMap<>();
@@ -64,6 +66,17 @@ public class PartySearchCoordinator {
 
     private static final Map<Integer, Set<Integer>> mapNeighbors = fetchNeighbouringMaps();
     private static final Map<Integer, Job> jobTable = instantiateJobTable();
+
+    public PartySearchCoordinator() {
+        for (Job job : jobTable.values()) {
+            storage.put(job, new PartySearchStorage());
+            upcomers.put(job, new PartySearchEchelon());
+        }
+
+        ReadWriteLock leaderQueueLock = new ReentrantReadWriteLock(true);
+        this.leaderQueueRLock = leaderQueueLock.readLock();
+        this.leaderQueueWLock = leaderQueueLock.writeLock();
+    }
 
     private static Map<Integer, Set<Integer>> fetchNeighbouringMaps() {
         Map<Integer, Set<Integer>> mapLinks = new HashMap<>();
@@ -174,13 +187,6 @@ public class PartySearchCoordinator {
             this.reentryCount = 0;
         }
 
-    }
-
-    public PartySearchCoordinator() {
-        for (Job job : jobTable.values()) {
-            storage.put(job, new PartySearchStorage());
-            upcomers.put(job, new PartySearchEchelon());
-        }
     }
 
     public void attachPlayer(Character chr) {

@@ -70,8 +70,6 @@ public final class NPCTalkHandler extends AbstractPacketHandler {
                     NPCScriptManager.getInstance().start(c, npc.getId(), "gachapon", null);
                 } else if (npc.getName().endsWith("Maple TV")) {
                     NPCScriptManager.getInstance().start(c, npc.getId(), "mapleTV", null);
-                } else if (YamlConfig.config.server.USE_REBIRTH_SYSTEM && npc.getId() == YamlConfig.config.server.REBIRTH_NPC_ID) {
-                    NPCScriptManager.getInstance().start(c, npc.getId(), "rebirth", null);
                 } else {
                     boolean hasNpcScript = NPCScriptManager.getInstance().start(c, npc.getId(), oid, null);
                     if (!hasNpcScript) {
@@ -87,8 +85,7 @@ public final class NPCTalkHandler extends AbstractPacketHandler {
                     }
                 }
             }
-        } else if (obj instanceof PlayerNPC) {
-            PlayerNPC pnpc = (PlayerNPC) obj;
+        } else if (obj instanceof PlayerNPC pnpc) {
             NPCScriptManager nsm = NPCScriptManager.getInstance();
 
             if (pnpc.getScriptId() < NpcId.CUSTOM_DEV && !nsm.isNpcScriptAvailable(c, "" + pnpc.getScriptId())) {

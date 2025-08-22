@@ -22,10 +22,22 @@
 package net.server.channel.handlers;
 
 import client.Character;
-import client.*;
-import client.creator.veteran.*;
-import client.inventory.*;
+import client.Client;
+import client.Skill;
+import client.SkillFactory;
+import client.SkillMacro;
+import client.creator.veteran.BowmanCreator;
+import client.creator.veteran.MagicianCreator;
+import client.creator.veteran.PirateCreator;
+import client.creator.veteran.ThiefCreator;
+import client.creator.veteran.WarriorCreator;
+import client.inventory.Equip;
 import client.inventory.Equip.ScrollResult;
+import client.inventory.Inventory;
+import client.inventory.InventoryType;
+import client.inventory.Item;
+import client.inventory.ModifyInventory;
+import client.inventory.Pet;
 import client.inventory.manipulator.InventoryManipulator;
 import client.inventory.manipulator.KarmaManipulator;
 import client.processor.npc.DueyProcessor;
@@ -38,6 +50,7 @@ import constants.id.MapId;
 import constants.inventory.ItemConstants;
 import net.AbstractPacketHandler;
 import net.packet.InPacket;
+import net.packet.out.SendNoteSuccessPacket;
 import net.server.Server;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -45,11 +58,16 @@ import server.ItemInformationProvider;
 import server.Shop;
 import server.ShopFactory;
 import server.TimerManager;
-import server.maps.*;
+import server.maps.AbstractMapObject;
+import server.maps.FieldLimit;
+import server.maps.Kite;
+import server.maps.MapleMap;
+import server.maps.MapleTVEffect;
+import server.maps.PlayerShopItem;
+import service.NoteService;
 import tools.PacketCreator;
 import tools.Pair;
 
-import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
@@ -59,6 +77,12 @@ import static java.util.concurrent.TimeUnit.SECONDS;
 
 public final class UseCashItemHandler extends AbstractPacketHandler {
     private static final Logger log = LoggerFactory.getLogger(UseCashItemHandler.class);
+
+    private final NoteService noteService;
+
+    public UseCashItemHandler(NoteService noteService) {
+        this.noteService = noteService;
+    }
 
     @Override
     public void handlePacket(InPacket p, Client c) {
@@ -221,10 +245,10 @@ public final class UseCashItemHandler extends AbstractPacketHandler {
                     return;
                 }
                 short flag = eq.getFlag();
-                flag |= ItemConstants.LOCK;
-                if (eq.getExpiration() > -1) {
+                if (eq.getExpiration() > -1 && (eq.getFlag() & ItemConstants.LOCK) != ItemConstants.LOCK) {
                     return; //No perma items pls
                 }
+                flag |= ItemConstants.LOCK;
                 eq.setFlag(flag);
 
                 long period = 0;
@@ -239,7 +263,8 @@ public final class UseCashItemHandler extends AbstractPacketHandler {
                 }
 
                 if (period > 0) {
-                    eq.setExpiration(currentServerTime() + DAYS.toMillis(period));
+                    long expiration = eq.getExpiration() > -1 ? eq.getExpiration() : currentServerTime();
+                    eq.setExpiration(expiration + DAYS.toMillis(period));
                 }
 
                 // double-remove found thanks to BHB
@@ -358,12 +383,11 @@ public final class UseCashItemHandler extends AbstractPacketHandler {
         } else if (itemType == 509) {
             String sendTo = p.readString();
             String msg = p.readString();
-            try {
-                player.sendNote(sendTo, msg, (byte) 0);
-            } catch (SQLException e) {
-                e.printStackTrace();
+            boolean sendSuccess = noteService.sendNormal(msg, player.getName(), sendTo);
+            if (sendSuccess) {
+                remove(c, position, itemId);
+                c.sendPacket(new SendNoteSuccessPacket());
             }
-            remove(c, position, itemId);
         } else if (itemType == 510) {
             player.getMap().broadcastMessage(PacketCreator.musicChange("Jukebox/Congratulation"));
             remove(c, position, itemId);
@@ -419,7 +443,7 @@ public final class UseCashItemHandler extends AbstractPacketHandler {
                     Pair<Integer, Boolean> pair = pet.canConsume(itemId);
 
                     if (pair.getRight()) {
-                        pet.gainClosenessFullness(player, pair.getLeft(), 100, 1);
+                        pet.gainTamenessFullness(player, pair.getLeft(), 100, 1, true);
                         remove(c, position, itemId);
                         break;
                     }

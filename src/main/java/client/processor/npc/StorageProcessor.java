@@ -50,6 +50,8 @@ public class StorageProcessor {
         ItemInformationProvider ii = ItemInformationProvider.getInstance();
         Character chr = c.getPlayer();
         Storage storage = chr.getStorage();
+        String gmBlockedStorageMessage = "You cannot use the storage as a GM of this level.";
+
         byte mode = p.readByte();
 
         if (chr.getLevel() < 15) {
@@ -60,7 +62,8 @@ public class StorageProcessor {
 
         if (c.tryacquireClient()) {
             try {
-                if (mode == 4) { // take out
+                switch (mode) {
+                case 4: { // Take out
                     byte type = p.readByte();
                     byte slot = p.readByte();
                     if (slot < 0 || slot > storage.getSlots()) { // removal starts at zero
@@ -69,8 +72,17 @@ public class StorageProcessor {
                         c.disconnect(true, false);
                         return;
                     }
+
                     slot = storage.getSlot(InventoryType.getByType(type), slot);
                     Item item = storage.getItem(slot);
+
+                    if (hasGMRestrictions(chr)) {
+                        chr.dropMessage(1, gmBlockedStorageMessage);
+                        log.info(String.format("GM %s blocked from using storage", chr.getName()));
+                        chr.sendPacket(PacketCreator.enableActions());
+                        return;
+                    }
+
                     if (item != null) {
                         if (ii.isPickupRestricted(item.getItemId()) && chr.haveItemWithId(item.getItemId(), true)) {
                             c.sendPacket(PacketCreator.getStorageError((byte) 0x0C));
@@ -104,18 +116,29 @@ public class StorageProcessor {
                             c.sendPacket(PacketCreator.getStorageError((byte) 0x0A));
                         }
                     }
-                } else if (mode == 5) { // store
+                    break;
+                }
+                case 5: { // Store
                     short slot = p.readShort();
                     int itemId = p.readInt();
                     short quantity = p.readShort();
                     InventoryType invType = ItemConstants.getInventoryType(itemId);
                     Inventory inv = chr.getInventory(invType);
-                    if (slot < 1 || slot > inv.getSlotLimit()) { //player inv starts at one
-                        AutobanFactory.PACKET_EDIT.alert(c.getPlayer(), c.getPlayer().getName() + " tried to packet edit with storage.");
+                    if (slot < 1 || slot > inv.getSlotLimit()) { // player inv starts at one
+                        AutobanFactory.PACKET_EDIT.alert(c.getPlayer(),
+                                c.getPlayer().getName() + " tried to packet edit with storage.");
                         log.warn("Chr {} tried to store item at slot {}", c.getPlayer().getName(), slot);
                         c.disconnect(true, false);
                         return;
                     }
+
+                    if (hasGMRestrictions(chr)) {
+                        chr.dropMessage(1, gmBlockedStorageMessage);
+                        log.info(String.format("GM %s blocked from using storage", chr.getName()));
+                        chr.sendPacket(PacketCreator.enableActions());
+                        return;
+                    }
+
                     if (quantity < 1) {
                         c.sendPacket(PacketCreator.enableActions());
                         return;
@@ -124,17 +147,17 @@ public class StorageProcessor {
                         c.sendPacket(PacketCreator.getStorageError((byte) 0x11));
                         return;
                     }
-
                     int storeFee = storage.getStoreFee();
                     if (chr.getMeso() < storeFee) {
                         c.sendPacket(PacketCreator.getStorageError((byte) 0x0B));
                     } else {
                         Item item;
 
-                        inv.lockInventory();    // thanks imbee for pointing a dupe within storage
+                        inv.lockInventory(); // thanks imbee for pointing a dupe within storage
                         try {
                             item = inv.getItem(slot);
-                            if (item != null && item.getItemId() == itemId && (item.getQuantity() >= quantity || ItemConstants.isRechargeable(itemId))) {
+                            if (item != null && item.getItemId() == itemId
+                                    && (item.getQuantity() >= quantity || ItemConstants.isRechargeable(itemId))) {
                                 if (ItemId.isWeddingRing(itemId) || ItemId.isWeddingToken(itemId)) {
                                     c.sendPacket(PacketCreator.enableActions());
                                     return;
@@ -150,7 +173,7 @@ public class StorageProcessor {
                                 return;
                             }
 
-                            item = item.copy();     // thanks Robin Schulz & BHB88 for noticing a inventory glitch when storing items
+                            item = item.copy(); // thanks Robin Schulz & BHB88 for noticing a inventory glitch when storing items
                         } finally {
                             inv.unlockInventory();
                         }
@@ -160,22 +183,33 @@ public class StorageProcessor {
                         KarmaManipulator.toggleKarmaFlagToUntradeable(item);
                         item.setQuantity(quantity);
 
-                        storage.store(item);    // inside a critical section, "!(storage.isFull())" is still in effect...
+                        storage.store(item); // inside a critical section, "!(storage.isFull())" is still in effect...
                         chr.setUsedStorage();
 
                         String itemName = ii.getName(item.getItemId());
                         log.debug("Chr {} stored {}x {} ({})", c.getPlayer().getName(), item.getQuantity(), itemName, item.getItemId());
                         storage.sendStored(c, ItemConstants.getInventoryType(itemId));
                     }
-                } else if (mode == 6) { // arrange items
+                    break;
+                }
+                case 6: // Arrange items
                     if (YamlConfig.config.server.USE_STORAGE_ITEM_SORT) {
                         storage.arrangeItems(c);
                     }
                     c.sendPacket(PacketCreator.enableActions());
-                } else if (mode == 7) { // meso
+                    break;
+                case 7: { // Mesos
                     int meso = p.readInt();
                     int storageMesos = storage.getMeso();
                     int playerMesos = chr.getMeso();
+
+                    if (hasGMRestrictions(chr)) {
+                        chr.dropMessage(1, gmBlockedStorageMessage);
+                        log.info(String.format("GM %s blocked from using storage", chr.getName()));
+                        chr.sendPacket(PacketCreator.enableActions());
+                        return;
+                    }
+
                     if ((meso > 0 && storageMesos >= meso) || (meso < 0 && playerMesos >= -meso)) {
                         if (meso < 0 && (storageMesos - meso) < 0) {
                             meso = Integer.MIN_VALUE + storageMesos;
@@ -199,12 +233,19 @@ public class StorageProcessor {
                         c.sendPacket(PacketCreator.enableActions());
                         return;
                     }
-                } else if (mode == 8) {// close... unless the player decides to enter cash shop!
+                    break;
+                }
+                case 8: // Close (unless the player decides to enter cash shop)
                     storage.close();
+                    break;
                 }
             } finally {
                 c.releaseClient();
             }
         }
+    }
+
+    private static boolean hasGMRestrictions(Character character) {
+        return character.isGM() && character.gmLevel() < YamlConfig.config.server.MINIMUM_GM_LEVEL_TO_USE_STORAGE;
     }
 }

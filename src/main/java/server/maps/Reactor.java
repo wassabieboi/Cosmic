@@ -24,8 +24,6 @@ package server.maps;
 import client.Client;
 import config.YamlConfig;
 import net.packet.Packet;
-import net.server.audit.locks.MonitoredLockType;
-import net.server.audit.locks.factory.MonitoredReentrantLockFactory;
 import net.server.services.task.channel.OverallService;
 import net.server.services.type.ChannelServices;
 import scripting.reactor.ReactorScriptManager;
@@ -38,6 +36,7 @@ import java.awt.*;
 import java.util.List;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * @author Lerk
@@ -58,8 +57,8 @@ public class Reactor extends AbstractMapObject {
     private Runnable delayedRespawnRun = null;
     private GuardianSpawnPoint guardian = null;
     private byte facingDirection = 0;
-    private final Lock reactorLock = MonitoredReentrantLockFactory.createLock(MonitoredLockType.REACTOR, true);
-    private final Lock hitLock = MonitoredReentrantLockFactory.createLock(MonitoredLockType.REACTOR_HIT, true);
+    private final Lock reactorLock = new ReentrantLock(true);
+    private final Lock hitLock = new ReentrantLock(true);
 
     public Reactor(ReactorStats stats, int rid) {
         this.evstate = (byte) 0;
@@ -256,8 +255,8 @@ public class Reactor extends AbstractMapObject {
                     cancelReactorTimeout();
                     attackHit = wHit;
 
-                    if (YamlConfig.config.server.USE_DEBUG == true) {
-                        c.getPlayer().dropMessage(5, "Hitted REACTOR " + this.getId() + " with POS " + charPos + " , STANCE " + stance + " , SkillID " + skillid + " , STATE " + stats.getType(state) + " STATESIZE " + stats.getStateSize(state));
+                    if (YamlConfig.config.server.USE_DEBUG) {
+                        c.getPlayer().dropMessage(5, "Hitted REACTOR " + this.getId() + " with POS " + charPos + " , STANCE " + stance + " , SkillID " + skillid + " , STATE " + state + " STATESIZE " + stats.getStateSize(state));
                     }
                     ReactorScriptManager.getInstance().onHit(c, this);
 
@@ -271,8 +270,11 @@ public class Reactor extends AbstractMapObject {
                                         continue;
                                     }
                                 }
-                                state = stats.getNextState(state, b);
-                                if (stats.getNextState(state, b) == -1) {//end of reactor
+
+                                this.state = stats.getNextState(state, b);
+                                byte nextState = stats.getNextState(state, b);
+                                boolean isInEndState = nextState < this.state;
+                                if (isInEndState) {//end of reactor
                                     if (reactorType < 100) {//reactor broken
                                         if (delay > 0) {
                                             map.destroyReactor(getObjectId());

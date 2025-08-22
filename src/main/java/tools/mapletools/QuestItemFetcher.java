@@ -1,23 +1,33 @@
 package tools.mapletools;
 
-import org.apache.commons.io.FileUtils;
 import provider.wz.WZFiles;
 import server.ItemInformationProvider;
 import tools.DatabaseConnection;
 import tools.Pair;
 
-import java.io.*;
-import java.nio.charset.StandardCharsets;
+import java.io.BufferedReader;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * @author RonanLana
  * <p>
- * This application haves 2 objectives: fetch missing drop data relevant to quests,
+ * This application has 2 objectives: fetch missing drop data relevant to quests,
  * and update the questid from items that are labeled as "Quest Item" on the DB.
  * <p>
  * Running it should generate a report file under "output" folder with the search results.
@@ -25,7 +35,8 @@ import java.util.*;
  * Estimated parse time: 1 minute
  */
 public class QuestItemFetcher {
-    private static final File OUTPUT_FILE = ToolConstants.getOutputFile("quest_report.txt");
+    private static final Path OUTPUT_FILE = ToolConstants.getOutputFile("quest_report.txt");
+    private static final Collection<String> RELEVANT_FILE_EXTENSIONS = Set.of(".sql", ".js", ".txt", ".java");
     private static final int INITIAL_STRING_LENGTH = 50;
     private static final int INITIAL_LENGTH = 200;
     private static final boolean DISPLAY_EXTRA_INFO = true;     // display items with zero quantity over the quest act WZ
@@ -333,22 +344,28 @@ public class QuestItemFetcher {
         }
     }
 
-    private static void filterDirectorySearchMatchingData(String path, List<Pair<Integer, Integer>> itemsWithQuest) {
-        Iterator<File> iter = FileUtils.iterateFiles(new File(path), new String[]{"sql", "js", "txt", "java"}, true);
-
-        while (iter.hasNext()) {
-            File file = iter.next();
-            fileSearchMatchingData(file, itemsWithQuest);
+    private static void filterDirectorySearchMatchingData(String filePath, List<Pair<Integer, Integer>> itemsWithQuest) {
+        try {
+            Files.walk(Path.of(filePath))
+                    .filter(QuestItemFetcher::isRelevantFile)
+                    .forEach(path -> fileSearchMatchingData(path, itemsWithQuest));
+        } catch (IOException e) {
+            throw new RuntimeException("Error during recursive file walk", e);
         }
+    }
+
+    private static boolean isRelevantFile(Path file) {
+        String fileName = file.getFileName().toString();
+        return RELEVANT_FILE_EXTENSIONS.stream().anyMatch(fileName::endsWith);
     }
 
     private static boolean foundMatchingDataOnFile(String fileContent, String searchStr) {
         return fileContent.contains(searchStr);
     }
 
-    private static void fileSearchMatchingData(File file, List<Pair<Integer, Integer>> itemsWithQuest) {
+    private static void fileSearchMatchingData(Path file, List<Pair<Integer, Integer>> itemsWithQuest) {
         try {
-            String fileContent = FileUtils.readFileToString(file, StandardCharsets.UTF_8);
+            String fileContent = Files.readString(file);
 
             List<Pair<Integer, Integer>> copyItemsWithQuest = new ArrayList<>(itemsWithQuest);
             for (Pair<Integer, Integer> iq : copyItemsWithQuest) {
@@ -357,7 +374,7 @@ public class QuestItemFetcher {
                 }
             }
         } catch (IOException ioe) {
-            System.out.println("Failed to read file: " + file.getAbsolutePath());
+            System.out.println("Failed to read file: " + file.getFileName().toAbsolutePath().toString());
             ioe.printStackTrace();
         }
     }
@@ -372,7 +389,7 @@ public class QuestItemFetcher {
         List<Map.Entry<Integer, Integer>> list = new ArrayList<>(map.size());
         list.addAll(map.entrySet());
 
-        list.sort((o1, o2) -> o1.getKey() - o2.getKey());
+        list.sort(Comparator.comparingInt(Map.Entry::getKey));
 
         return list;
     }
@@ -381,7 +398,7 @@ public class QuestItemFetcher {
         List<Map.Entry<Integer, int[]>> list = new ArrayList<>(map.size());
         list.addAll(map.entrySet());
 
-        list.sort((o1, o2) -> o1.getKey() - o2.getKey());
+        list.sort(Comparator.comparingInt(Map.Entry::getKey));
 
         return list;
     }
@@ -392,12 +409,12 @@ public class QuestItemFetcher {
             List<Integer> il = new ArrayList<>(2);
             il.addAll(e.getValue());
 
-            il.sort((o1, o2) -> o1 - o2);
+            il.sort(Comparator.comparingInt(o -> o));
 
             list.add(new Pair<>(e.getKey(), il));
         }
 
-        list.sort((o1, o2) -> o1.getLeft() - o2.getLeft());
+        list.sort(Comparator.comparingInt(Pair::getLeft));
 
         return list;
     }
@@ -409,32 +426,28 @@ public class QuestItemFetcher {
     private static void reportQuestItemData() {
         // This will reference one line at a time
         String line = null;
-        String fileName = null;
+        Path file = null;
 
-        try {
+        try (PrintWriter pw = new PrintWriter(Files.newOutputStream(OUTPUT_FILE))) {
             System.out.println("Reading WZs...");
 
-            fileName = WZFiles.QUEST.getFilePath() + "/Check.img.xml";
-            InputStreamReader fileReader = new InputStreamReader(new FileInputStream(fileName), StandardCharsets.UTF_8);
-            bufferedReader = new BufferedReader(fileReader);
+            file = WZFiles.QUEST.getFile().resolve("Check.img.xml");
+            bufferedReader = Files.newBufferedReader(file);
 
             while ((line = bufferedReader.readLine()) != null) {
-                translateCheckToken(line);  // fetch expired quests through here as well
+                translateCheckToken(line); // fetch expired quests through here as well
             }
 
             bufferedReader.close();
-            fileReader.close();
 
-            fileName = WZFiles.QUEST.getFilePath() + "/Act.img.xml";
-            fileReader = new InputStreamReader(new FileInputStream(fileName), StandardCharsets.UTF_8);
-            bufferedReader = new BufferedReader(fileReader);
+            file = WZFiles.QUEST.getFile().resolve("Act.img.xml");
+            bufferedReader = Files.newBufferedReader(file);
 
             while ((line = bufferedReader.readLine()) != null) {
                 translateActToken(line);
             }
 
             bufferedReader.close();
-            fileReader.close();
 
             System.out.println("Calculating table diffs...");
             calculateQuestItemDiff();
@@ -448,12 +461,13 @@ public class QuestItemFetcher {
             System.out.println("Filtering drops on project files...");
             // finally, filter whether this item is mentioned on the source code or not.
             filterDirectorySearchMatchingData("scripts", itemsWithQuest);
-            filterDirectorySearchMatchingData("sql", itemsWithQuest);
+            filterDirectorySearchMatchingData("database/sql", itemsWithQuest);
             filterDirectorySearchMatchingData("src", itemsWithQuest);
 
             System.out.println("Reporting results...");
-            // report suspects of missing quest drop data, as well as those drop data that may have incorrect questids.
-            printWriter = new PrintWriter(OUTPUT_FILE, StandardCharsets.UTF_8);
+            // report suspects of missing quest drop data, as well as those drop data that
+            // may have incorrect questids.
+            printWriter = pw;
 
             printReportFileHeader();
 
@@ -505,12 +519,11 @@ public class QuestItemFetcher {
                 }
             }
 
-            printWriter.close();
             System.out.println("Done!");
         } catch (FileNotFoundException ex) {
-            System.out.println("Unable to open file '" + fileName + "'");
+            System.out.println("Unable to open file '" + file + "'");
         } catch (IOException ex) {
-            System.out.println("Error reading file '" + fileName + "'");
+            System.out.println("Error reading file '" + file + "'");
         } catch (SQLException e) {
             System.out.println("Warning: Could not establish connection to database to report quest data.");
             System.out.println(e.getMessage());

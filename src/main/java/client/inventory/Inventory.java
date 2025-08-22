@@ -25,17 +25,23 @@ import client.Character;
 import client.Client;
 import client.inventory.manipulator.InventoryManipulator;
 import constants.inventory.ItemConstants;
-import net.server.audit.locks.MonitoredLockType;
-import net.server.audit.locks.factory.MonitoredReentrantLockFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import server.ItemInformationProvider;
 import server.ThreadManager;
 import tools.Pair;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * @author Matze, Ronan
@@ -44,7 +50,7 @@ public class Inventory implements Iterable<Item> {
     private static final Logger log = LoggerFactory.getLogger(Inventory.class);
     protected final Map<Short, Item> inventory;
     protected final InventoryType type;
-    protected final Lock lock = MonitoredReentrantLockFactory.createLock(MonitoredLockType.INVENTORY, true);
+    protected final Lock lock = new ReentrantLock(true);
 
     protected Character owner;
     protected byte slotLimit;

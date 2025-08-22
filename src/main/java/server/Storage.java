@@ -23,8 +23,6 @@ import client.inventory.InventoryType;
 import client.inventory.Item;
 import client.inventory.ItemFactory;
 import constants.game.GameConstants;
-import net.server.audit.locks.MonitoredLockType;
-import net.server.audit.locks.factory.MonitoredReentrantLockFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import provider.Data;
@@ -40,8 +38,14 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * @author Matze
@@ -57,7 +61,7 @@ public class Storage {
     private byte slots;
     private final Map<InventoryType, List<Item>> typeItems = new HashMap<>();
     private List<Item> items = new LinkedList<>();
-    private final Lock lock = MonitoredReentrantLockFactory.createLock(MonitoredLockType.STORAGE, true);
+    private final Lock lock = new ReentrantLock(true);
 
     private Storage(int id, byte slots, int meso) {
         this.id = id;

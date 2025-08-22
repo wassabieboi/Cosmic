@@ -28,11 +28,6 @@ import net.netty.ChannelServer;
 import net.packet.Packet;
 import net.server.PlayerStorage;
 import net.server.Server;
-import net.server.audit.LockCollector;
-import net.server.audit.locks.*;
-import net.server.audit.locks.factory.MonitoredReadLockFactory;
-import net.server.audit.locks.factory.MonitoredReentrantLockFactory;
-import net.server.audit.locks.factory.MonitoredWriteLockFactory;
 import net.server.services.BaseService;
 import net.server.services.ServicesManager;
 import net.server.services.type.ChannelServices;
@@ -46,16 +41,37 @@ import server.TimerManager;
 import server.events.gm.Event;
 import server.expeditions.Expedition;
 import server.expeditions.ExpeditionType;
-import server.maps.*;
+import server.maps.HiredMerchant;
+import server.maps.MapManager;
+import server.maps.MapleMap;
+import server.maps.MiniDungeon;
+import server.maps.MiniDungeonInfo;
 import tools.PacketCreator;
 import tools.Pair;
 
-import java.io.File;
-import java.util.*;
+import java.io.IOException;
+import java.nio.file.DirectoryStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
+import java.util.WeakHashMap;
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
-import static java.util.concurrent.TimeUnit.*;
+import static java.util.concurrent.TimeUnit.HOURS;
+import static java.util.concurrent.TimeUnit.MINUTES;
+import static java.util.concurrent.TimeUnit.SECONDS;
 
 public final class Channel {
     private static final Logger log = LoggerFactory.getLogger(Channel.class);
@@ -102,13 +118,9 @@ public final class Channel {
     private Set<Integer> ongoingCathedralGuests = null;
     private long ongoingStartTime;
 
-    private final MonitoredReentrantReadWriteLock merchantLock = new MonitoredReentrantReadWriteLock(MonitoredLockType.MERCHANT, true);
-    private final MonitoredReadLock merchRlock = MonitoredReadLockFactory.createLock(merchantLock);
-    private final MonitoredWriteLock merchWlock = MonitoredWriteLockFactory.createLock(merchantLock);
-
-    private final MonitoredReentrantLock[] faceLock = new MonitoredReentrantLock[YamlConfig.config.server.CHANNEL_LOCKS];
-
-    private MonitoredReentrantLock lock = MonitoredReentrantLockFactory.createLock(MonitoredLockType.CHANNEL, true);
+    private final Lock lock = new ReentrantLock(true);;
+    private final Lock merchRlock;
+    private final Lock merchWlock;
 
     public Channel(final int world, final int channel, long startTime) {
         this.world = world;
@@ -118,6 +130,10 @@ public final class Channel {
         this.mapManager = new MapManager(null, world, channel);
         this.port = BASE_PORT + (this.channel - 1) + (world * 100);
         this.ip = YamlConfig.config.server.HOST + ":" + port;
+
+        ReentrantReadWriteLock rwLock = new ReentrantReadWriteLock(true);
+        this.merchRlock = rwLock.readLock();
+        this.merchWlock = rwLock.writeLock();
 
         try {
             this.channelServer = initServer(port, world, channel);
@@ -212,19 +228,6 @@ public final class Channel {
         }
 
         closeChannelServices();
-        disposeLocks();
-    }
-
-    private void disposeLocks() {
-        LockCollector.getInstance().registerDisposeAction(() -> emptyLocks());
-    }
-
-    private void emptyLocks() {
-        for (int i = 0; i < YamlConfig.config.server.CHANNEL_LOCKS; i++) {
-            faceLock[i] = faceLock[i].dispose();
-        }
-
-        lock = lock.dispose();
     }
 
     private void closeAllMerchants() {
@@ -448,8 +451,14 @@ public final class Channel {
 
     private static String[] getEvents() {
         List<String> events = new ArrayList<>();
-        for (File file : new File("scripts/event").listFiles()) {
-            events.add(file.getName().substring(0, file.getName().length() - 3));
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(Path.of("scripts/event"))) {
+            for (Path path : stream) {
+                String fileName = path.getFileName().toString();
+                events.add(fileName.substring(0, fileName.length() - 3));
+            }
+        } catch (IOException e) {
+            log.warn("Unable to load events !");
+            e.printStackTrace();
         }
         return events.toArray(new String[0]);
     }

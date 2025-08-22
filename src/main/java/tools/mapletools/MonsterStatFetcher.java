@@ -1,17 +1,31 @@
 package tools.mapletools;
 
-import provider.*;
+import provider.Data;
+import provider.DataDirectoryEntry;
+import provider.DataFileEntry;
+import provider.DataProvider;
+import provider.DataProviderFactory;
+import provider.DataTool;
 import provider.wz.DataType;
 import provider.wz.WZFiles;
+import server.life.BanishInfo;
 import server.life.Element;
 import server.life.ElementalEffectiveness;
-import server.life.LifeFactory.BanishInfo;
 import server.life.LifeFactory.loseItem;
 import server.life.LifeFactory.selfDestruction;
+import server.life.MobSkillId;
+import server.life.MobSkillType;
 import server.life.MonsterStats;
 import tools.Pair;
 
-import java.util.*;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 public class MonsterStatFetcher {
     private static final DataProvider data = DataProviderFactory.getDataProvider(WZFiles.MOB);
@@ -108,16 +122,22 @@ public class MonsterStatFetcher {
                 Data monsterSkillData = monsterInfoData.getChildByPath("skill");
                 if (monsterSkillData != null) {
                     int i = 0;
-                    List<Pair<Integer, Integer>> skills = new ArrayList<>();
+                    Set<MobSkillId> skills = new HashSet<>();
                     while (monsterSkillData.getChildByPath(Integer.toString(i)) != null) {
-                        skills.add(new Pair<>(DataTool.getInt(i + "/skill", monsterSkillData, 0), DataTool.getInt(i + "/level", monsterSkillData, 0)));
+                        int skillId = DataTool.getInt(i + "/skill", monsterSkillData, 0);
+                        MobSkillType type = MobSkillType.from(skillId).orElseThrow();
+                        int skillLevel = DataTool.getInt(i + "/level", monsterSkillData, 0);
+                        skills.add(new MobSkillId(type, skillLevel));
                         i++;
                     }
                     stats.setSkills(skills);
                 }
                 Data banishData = monsterInfoData.getChildByPath("ban");
                 if (banishData != null) {
-                    stats.setBanishInfo(new BanishInfo(DataTool.getString("banMsg", banishData), DataTool.getInt("banMap/0/field", banishData, -1), DataTool.getString("banMap/0/portal", banishData, "sp")));
+                    int map = DataTool.getInt("banMap/0/field", banishData, -1);
+                    String portal = DataTool.getString("banMap/0/portal", banishData, "sp");
+                    String msg = DataTool.getString("banMsg", banishData);
+                    stats.setBanishInfo(new BanishInfo(map, portal, msg));
                 }
 
                 monsterStats.put(mid, stats);
@@ -140,4 +160,15 @@ public class MonsterStatFetcher {
         }
     }
 
+    public static void main(String[] args) {
+    	Instant instantStarted = Instant.now();
+    	// load mob stats from WZ
+    	Map<Integer, MonsterStats> mobStats = MonsterStatFetcher.getAllMonsterStats();
+        Instant instantStopped = Instant.now();
+        Duration durationBetween = Duration.between(instantStarted, instantStopped);
+        System.out.println("Get elapsed time in milliseconds: " + durationBetween.toMillis());
+      	System.out.println("Get elapsed time in seconds: " + durationBetween.toSeconds());
+
+    }
+    
 }

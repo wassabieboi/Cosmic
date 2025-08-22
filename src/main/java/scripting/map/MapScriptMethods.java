@@ -72,21 +72,22 @@ public class MapScriptMethods extends AbstractPlayerInteraction {
     }
 
     public void startExplorerExperience() {
-        if (c.getPlayer().getMapId() == 1020100) //Swordman
-        {
+        switch (c.getPlayer().getMapId()) {
+        case 1020100: //Swordman
             c.sendPacket(PacketCreator.showIntro("Effect/Direction3.img/swordman/Scene" + c.getPlayer().getGender()));
-        } else if (c.getPlayer().getMapId() == 1020200) //Magician
-        {
+            break;
+        case 1020200: //Magician
             c.sendPacket(PacketCreator.showIntro("Effect/Direction3.img/magician/Scene" + c.getPlayer().getGender()));
-        } else if (c.getPlayer().getMapId() == 1020300) //Archer
-        {
+            break;
+        case 1020300: //Archer
             c.sendPacket(PacketCreator.showIntro("Effect/Direction3.img/archer/Scene" + c.getPlayer().getGender()));
-        } else if (c.getPlayer().getMapId() == 1020400) //Rogue
-        {
+            break;
+        case 1020400: //Rogue
             c.sendPacket(PacketCreator.showIntro("Effect/Direction3.img/rogue/Scene" + c.getPlayer().getGender()));
-        } else if (c.getPlayer().getMapId() == 1020500) //Pirate
-        {
+            break;
+        case 1020500: //Pirate
             c.sendPacket(PacketCreator.showIntro("Effect/Direction3.img/pirate/Scene" + c.getPlayer().getGender()));
+            break;
         }
     }
 
@@ -102,6 +103,10 @@ public class MapScriptMethods extends AbstractPlayerInteraction {
 
     public void explorerQuest(short questid, String questName) {
         Quest quest = Quest.getInstance(questid);
+        if (isQuestCompleted(questid)) {
+            return;
+        }
+        
         if (!isQuestStarted(questid)) {
             if (!quest.forceStart(getPlayer(), 9000066)) {
                 return;
@@ -113,7 +118,11 @@ public class MapScriptMethods extends AbstractPlayerInteraction {
         }
         String status = Integer.toString(qs.getMedalProgress());
         String infoex = qs.getInfoEx(0);
-        getPlayer().announceUpdateQuest(DelayedQuestUpdate.UPDATE, qs, true);
+
+        // explorer quests all have an infoex/infonumber requirement that points to another quest
+        // THAT quest's progress needs to be updated for Quest.canComplete() to return true
+        getPlayer().setQuestProgress(quest.getId(), (int)quest.getInfoNumber(qs.getStatus()), status);
+
         StringBuilder smp = new StringBuilder();
         StringBuilder etm = new StringBuilder();
         if (status.equals(infoex)) {

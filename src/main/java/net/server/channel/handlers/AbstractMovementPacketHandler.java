@@ -26,7 +26,12 @@ import net.packet.InPacket;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import server.maps.AnimatedMapObject;
-import server.movement.*;
+import server.movement.AbsoluteLifeMovement;
+import server.movement.ChangeEquip;
+import server.movement.JumpDownMovement;
+import server.movement.LifeMovementFragment;
+import server.movement.RelativeLifeMovement;
+import server.movement.TeleportMovement;
 import tools.exceptions.EmptyMovementException;
 
 import java.awt.*;
@@ -61,8 +66,8 @@ public abstract class AbstractMovementPacketHandler extends AbstractPacketHandle
                     res.add(alm);
                     break;
                 }
-                case 1:
-                case 2:
+                case 1: // jump
+                case 2: // knockback
                 case 6: // fj
                 case 12:
                 case 13: // Shot-jump-back thing
@@ -79,8 +84,8 @@ public abstract class AbstractMovementPacketHandler extends AbstractPacketHandle
                     res.add(rlm);
                     break;
                 }
-                case 3:
-                case 4: // tele... -.-
+                case 3: // teleport disappear
+                case 4: // teleport appear
                 case 7: // assaulter
                 case 8: // assassinate
                 case 9: // rush

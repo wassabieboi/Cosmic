@@ -133,6 +133,23 @@ public class AbstractPlayerInteraction {
         warpParty(id, portalId, mapid, mapid);
     }
 
+    public void warpParty(int map, String portalName) {
+
+        int mapid = getMapId();
+        var warpMap = c.getChannelServer().getMapFactory().getMap(map);
+
+        var portal = warpMap.getPortal(portalName);
+
+        if (portal == null) {
+            portal = warpMap.getPortal(0);
+        }
+
+        var portalId = portal.getId();
+
+        warpParty(map, portalId, mapid, mapid);
+
+    }
+
     public void warpParty(int id, int fromMinId, int fromMaxId) {
         warpParty(id, 0, fromMinId, fromMaxId);
     }
@@ -274,7 +291,7 @@ public class AbstractPlayerInteraction {
         int size = Math.min(itemids.size(), quantity.size());
 
         List<List<Pair<Integer, Integer>>> invList = new ArrayList<>(6);
-        for (int i = InventoryType.UNDEFINED.getType(); i < InventoryType.CASH.getType(); i++) {
+        for (int i = InventoryType.UNDEFINED.getType(); i <= InventoryType.CASH.getType(); i++) {
             invList.add(new LinkedList<>());
         }
 
@@ -588,7 +605,7 @@ public class AbstractPlayerInteraction {
                     evolved.setSummoned(true);
 
                     evolved.setName(from.getName().compareTo(ItemInformationProvider.getInstance().getName(from.getItemId())) != 0 ? from.getName() : ItemInformationProvider.getInstance().getName(id));
-                    evolved.setCloseness(from.getCloseness());
+                    evolved.setTameness(from.getTameness());
                     evolved.setFullness(from.getFullness());
                     evolved.setLevel(from.getLevel());
                     evolved.setExpiration(System.currentTimeMillis() + expires);
@@ -965,10 +982,6 @@ public class AbstractPlayerInteraction {
         return LifeFactory.getMonster(mid);
     }
 
-    public MobSkill getMobSkill(int skill, int level) {
-        return MobSkillFactory.getMobSkill(skill, level);
-    }
-
     public void spawnGuide() {
         c.sendPacket(PacketCreator.spawnGuide(true));
     }
@@ -1184,5 +1197,31 @@ public class AbstractPlayerInteraction {
 
     public long getCurrentTime() {
         return Server.getInstance().getCurrentTime();
+    }
+
+    public void weakenAreaBoss(int monsterId, String message) {
+        MapleMap map = c.getPlayer().getMap();
+        Monster monster = map.getMonsterById(monsterId);
+        if (monster == null) {
+            return;
+        }
+
+        applySealSkill(monster);
+        applyReduceAvoid(monster);
+        sendBlueNotice(map, message);
+    }
+
+    private void applySealSkill(Monster monster) {
+        MobSkill sealSkill = MobSkillFactory.getMobSkillOrThrow(MobSkillType.SEAL_SKILL, 1);
+        sealSkill.applyEffect(monster);
+    }
+
+    private void applyReduceAvoid(Monster monster) {
+        MobSkill reduceAvoidSkill = MobSkillFactory.getMobSkillOrThrow(MobSkillType.EVA, 2);
+        reduceAvoidSkill.applyEffect(monster);
+    }
+
+    private void sendBlueNotice(MapleMap map, String message) {
+        map.dropMessage(6, message);
     }
 }

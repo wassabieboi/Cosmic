@@ -22,26 +22,29 @@ package net.server.coordinator.world;
 import client.Character;
 import config.YamlConfig;
 import net.server.Server;
-import net.server.audit.LockCollector;
-import net.server.audit.locks.MonitoredLockType;
-import net.server.audit.locks.MonitoredReentrantLock;
-import net.server.audit.locks.factory.MonitoredReentrantLockFactory;
 import server.TimerManager;
 import server.life.Monster;
 import server.maps.MapleMap;
 import tools.Pair;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * @author Ronan
  */
 public class MonsterAggroCoordinator {
-
-    private MonitoredReentrantLock lock = MonitoredReentrantLockFactory.createLock(MonitoredLockType.MAP_AGGRO);
-    private final MonitoredReentrantLock idleLock = MonitoredReentrantLockFactory.createLock(MonitoredLockType.MAP_AGGRO_IDLE, true);
+    private final Lock lock = new ReentrantLock();
+    private final Lock idleLock = new ReentrantLock(true);
     private long lastStopTime = Server.getInstance().getCurrentTime();
 
     private ScheduledFuture<?> aggroMonitor = null;
@@ -375,15 +378,5 @@ public class MonsterAggroCoordinator {
         } finally {
             lock.unlock();
         }
-
-        disposeLocks();
-    }
-
-    private void disposeLocks() {
-        LockCollector.getInstance().registerDisposeAction(() -> emptyLocks());
-    }
-
-    private void emptyLocks() {
-        lock = lock.dispose();
     }
 }

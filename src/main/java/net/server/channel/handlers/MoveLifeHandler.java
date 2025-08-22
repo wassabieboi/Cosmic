@@ -29,14 +29,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import server.life.MobSkill;
 import server.life.MobSkillFactory;
+import server.life.MobSkillId;
+import server.life.MobSkillType;
 import server.life.Monster;
 import server.life.MonsterInformationProvider;
 import server.maps.MapObject;
 import server.maps.MapObjectType;
 import server.maps.MapleMap;
 import tools.PacketCreator;
-import tools.Pair;
-import tools.Randomizer;
 import tools.exceptions.EmptyMovementException;
 
 import java.awt.*;
@@ -84,26 +84,20 @@ public final class MoveLifeHandler extends AbstractMovementPacketHandler {
         boolean isAttack = inRangeInclusive(rawActivity, 24, 41);
         boolean isSkill = inRangeInclusive(rawActivity, 42, 59);
 
-        MobSkill toUse = null;
-        int useSkillId = 0, useSkillLevel = 0;
+        int useSkillId = 0;
+        int useSkillLevel = 0;
 
-        MobSkill nextUse = null;
-        int nextSkillId = 0, nextSkillLevel = 0;
-
-        boolean nextMovementCouldBeSkill = !(isSkill || (pNibbles != 0));
-
-        int castPos;
         if (isSkill) {
             useSkillId = skillId;
             useSkillLevel = skillLv;
 
-            castPos = monster.getSkillPos(useSkillId, useSkillLevel);
-            if (castPos != -1) {
-                toUse = MobSkillFactory.getMobSkill(useSkillId, useSkillLevel);
+            if (monster.hasSkill(useSkillId, useSkillLevel)) {
+                MobSkillType mobSkillType = MobSkillType.from(useSkillId).orElseThrow();
+                MobSkill toUse = MobSkillFactory.getMobSkillOrThrow(mobSkillType, useSkillLevel);
 
                 if (monster.canUseSkill(toUse, true)) {
                     int animationTime = MonsterInformationProvider.getInstance().getMobSkillAnimationTime(toUse);
-                    if (animationTime > 0 && toUse.getSkillId() != 129) {
+                    if (animationTime > 0 && toUse.getType() != MobSkillType.BANISH) {
                         toUse.applyDelayedEffect(player, monster, true, animationTime);
                     } else {
                         banishPlayers = new LinkedList<>();
@@ -112,8 +106,7 @@ public final class MoveLifeHandler extends AbstractMovementPacketHandler {
                 }
             }
         } else {
-            castPos = (rawActivity - 24) / 2;
-
+            int castPos = (rawActivity - 24) / 2;
             int atkStatus = monster.canUseAttack(castPos, isSkill);
             if (atkStatus < 1) {
                 rawActivity = -1;
@@ -121,24 +114,23 @@ public final class MoveLifeHandler extends AbstractMovementPacketHandler {
             }
         }
 
+        boolean nextMovementCouldBeSkill = !(isSkill || (pNibbles != 0));
+        MobSkill nextUse = null;
+        int nextSkillId = 0;
+        int nextSkillLevel = 0;
         int mobMp = monster.getMp();
-        if (nextMovementCouldBeSkill) {
-            int noSkills = monster.getNoSkills();
-            if (noSkills > 0) {
-                int rndSkill = Randomizer.nextInt(noSkills);
+        if (nextMovementCouldBeSkill && monster.hasAnySkill()) {
+            MobSkillId skillToUse = monster.getRandomSkill();
+            nextSkillId = skillToUse.type().getId();
+            nextSkillLevel = skillToUse.level();
+            nextUse = MobSkillFactory.getMobSkillOrThrow(skillToUse.type(), skillToUse.level());
 
-                Pair<Integer, Integer> skillToUse = monster.getSkills().get(rndSkill);
-                nextSkillId = skillToUse.getLeft();
-                nextSkillLevel = skillToUse.getRight();
-                nextUse = MobSkillFactory.getMobSkill(nextSkillId, nextSkillLevel);
+            if (!(nextUse != null && monster.canUseSkill(nextUse, false) && nextUse.getHP() >= (int) (((float) monster.getHp() / monster.getMaxHp()) * 100) && mobMp >= nextUse.getMpCon())) {
+                // thanks OishiiKawaiiDesu for noticing mobs trying to cast skills they are not supposed to be able
 
-                if (!(nextUse != null && monster.canUseSkill(nextUse, false) && nextUse.getHP() >= (int) (((float) monster.getHp() / monster.getMaxHp()) * 100) && mobMp >= nextUse.getMpCon())) {
-                    // thanks OishiiKawaiiDesu for noticing mobs trying to cast skills they are not supposed to be able
-
-                    nextSkillId = 0;
-                    nextSkillLevel = 0;
-                    nextUse = null;
-                }
+                nextSkillId = 0;
+                nextSkillLevel = 0;
+                nextUse = null;
             }
         }
 
@@ -168,8 +160,8 @@ public final class MoveLifeHandler extends AbstractMovementPacketHandler {
             p.seek(movementDataStart);
 
             if (YamlConfig.config.server.USE_DEBUG_SHOW_RCVD_MVLIFE) {
-                log.debug("{} castPos: {}, rawAct: {}, opt: {}, skillId: {}, skillLv: {}, allowSkill: {}, mobMp: {}",
-                        isSkill ? "SKILL" : (isAttack ? "ATTCK" : ""), castPos, rawActivity, pOption, useSkillId,
+                log.debug("{} rawAct: {}, opt: {}, skillId: {}, skillLv: {}, allowSkill: {}, mobMp: {}",
+                        isSkill ? "SKILL" : (isAttack ? "ATTCK" : ""), rawActivity, pOption, useSkillId,
                         useSkillLevel, nextMovementCouldBeSkill, mobMp);
             }
 
@@ -181,7 +173,7 @@ public final class MoveLifeHandler extends AbstractMovementPacketHandler {
 
         if (banishPlayers != null) {
             for (Character chr : banishPlayers) {
-                chr.changeMapBanish(monster.getBanish().getMap(), monster.getBanish().getPortal(), monster.getBanish().getMsg());
+                chr.changeMapBanish(monster.getBanish());
             }
         }
     }

@@ -41,10 +41,10 @@ import server.CashShop;
 import server.CashShop.CashItem;
 import server.CashShop.CashItemFactory;
 import server.ItemInformationProvider;
+import service.NoteService;
 import tools.PacketCreator;
 import tools.Pair;
 
-import java.sql.SQLException;
 import java.util.Calendar;
 import java.util.List;
 import java.util.Map;
@@ -53,6 +53,12 @@ import static java.util.concurrent.TimeUnit.DAYS;
 
 public final class CashOperationHandler extends AbstractPacketHandler {
     private static final Logger log = LoggerFactory.getLogger(CashOperationHandler.class);
+
+    private final NoteService noteService;
+
+    public CashOperationHandler(NoteService noteService) {
+        this.noteService = noteService;
+    }
 
     @Override
     public void handlePacket(InPacket p, Client c) {
@@ -110,7 +116,7 @@ public final class CashOperationHandler extends AbstractPacketHandler {
                     CashItem cItem = CashItemFactory.getItem(p.readInt());
                     Map<String, String> recipient = Character.getCharacterFromDatabase(p.readString());
                     String message = p.readString();
-                    if (!canBuy(chr, cItem, cs.getCash(4)) || message.length() < 1 || message.length() > 73) {
+                    if (!canBuy(chr, cItem, cs.getCash(CashShop.NX_PREPAID)) || message.isEmpty() || message.length() > 73) {
                         c.enableCSActions();
                         return;
                     }
@@ -128,14 +134,13 @@ public final class CashOperationHandler extends AbstractPacketHandler {
                     cs.gift(Integer.parseInt(recipient.get("id")), chr.getName(), message, cItem.getSN());
                     c.sendPacket(PacketCreator.showGiftSucceed(recipient.get("name"), cItem));
                     c.sendPacket(PacketCreator.showCash(chr));
-                    try {
-                        chr.sendNote(recipient.get("name"), chr.getName() + " has sent you a gift! Go check out the Cash Shop.", (byte) 0); //fame or not
-                    } catch (SQLException ex) {
-                        ex.printStackTrace();
-                    }
+
+                    String noteMessage = chr.getName() + " has sent you a gift! Go check out the Cash Shop.";
+                    noteService.sendNormal(noteMessage, chr.getName(), recipient.get("name"));
+
                     Character receiver = c.getChannelServer().getPlayerStorage().getCharacterByName(recipient.get("name"));
                     if (receiver != null) {
-                        receiver.showNote();
+                        noteService.show(receiver);
                     }
                 } else if (action == 0x05) { // Modify wish list
                     cs.clearWishList();
@@ -269,8 +274,7 @@ public final class CashOperationHandler extends AbstractPacketHandler {
                         cs.removeFromInventory(item);
                         c.sendPacket(PacketCreator.takeFromCashInventory(item));
 
-                        if (item instanceof Equip) {
-                            Equip equip = (Equip) item;
+                        if (item instanceof Equip equip) {
                             if (equip.getRingId() >= 0) {
                                 Ring ring = Ring.loadFromDb(equip.getRingId());
                                 chr.addPlayerRing(ring);
@@ -323,8 +327,7 @@ public final class CashOperationHandler extends AbstractPacketHandler {
                                 return;
                             }*/ //Gotta let them faggots marry too, hence why this is commented out <3 
 
-                            if (itemRing.toItem() instanceof Equip) {
-                                Equip eqp = (Equip) itemRing.toItem();
+                            if (itemRing.toItem() instanceof Equip eqp) {
                                 Pair<Integer, Integer> rings = Ring.createRing(itemRing.getItemId(), chr, partner);
                                 eqp.setRingId(rings.getLeft());
                                 cs.addToInventory(eqp);
@@ -332,12 +335,8 @@ public final class CashOperationHandler extends AbstractPacketHandler {
                                 cs.gainCash(toCharge, itemRing, chr.getWorld());
                                 cs.gift(partner.getId(), chr.getName(), text, eqp.getSN(), rings.getRight());
                                 chr.addCrushRing(Ring.loadFromDb(rings.getLeft()));
-                                try {
-                                    chr.sendNote(partner.getName(), text, (byte) 1);
-                                } catch (SQLException ex) {
-                                    ex.printStackTrace();
-                                }
-                                partner.showNote();
+                                noteService.sendWithFame(text, chr.getName(), partner.getName());
+                                noteService.show(partner);
                             }
                         }
                     } else {
@@ -387,8 +386,7 @@ public final class CashOperationHandler extends AbstractPacketHandler {
                             c.sendPacket(PacketCreator.showCashShopMessage((byte) 0xBE));
                         } else {
                             // Need to check to make sure its actually an equip and the right SN...
-                            if (itemRing.toItem() instanceof Equip) {
-                                Equip eqp = (Equip) itemRing.toItem();
+                            if (itemRing.toItem() instanceof Equip eqp) {
                                 Pair<Integer, Integer> rings = Ring.createRing(itemRing.getItemId(), chr, partner);
                                 eqp.setRingId(rings.getLeft());
                                 cs.addToInventory(eqp);
@@ -396,12 +394,8 @@ public final class CashOperationHandler extends AbstractPacketHandler {
                                 cs.gainCash(payment, -itemRing.getPrice());
                                 cs.gift(partner.getId(), chr.getName(), text, eqp.getSN(), rings.getRight());
                                 chr.addFriendshipRing(Ring.loadFromDb(rings.getLeft()));
-                                try {
-                                    chr.sendNote(partner.getName(), text, (byte) 1);
-                                } catch (SQLException ex) {
-                                    ex.printStackTrace();
-                                }
-                                partner.showNote();
+                                noteService.sendWithFame(text, chr.getName(), partner.getName());
+                                noteService.show(partner);
                             }
                         }
                     } else {
@@ -411,7 +405,7 @@ public final class CashOperationHandler extends AbstractPacketHandler {
                     c.sendPacket(PacketCreator.showCash(c.getPlayer()));
                 } else if (action == 0x2E) { //name change
                     CashItem cItem = CashItemFactory.getItem(p.readInt());
-                    if (cItem == null || !canBuy(chr, cItem, cs.getCash(4))) {
+                    if (cItem == null || !canBuy(chr, cItem, cs.getCash(CashShop.NX_PREPAID))) {
                         c.sendPacket(PacketCreator.showCashShopMessage((byte) 0));
                         c.enableCSActions();
                         return;
@@ -440,7 +434,7 @@ public final class CashOperationHandler extends AbstractPacketHandler {
                     c.enableCSActions();
                 } else if (action == 0x31) { //world transfer
                     CashItem cItem = CashItemFactory.getItem(p.readInt());
-                    if (cItem == null || !canBuy(chr, cItem, cs.getCash(4))) {
+                    if (cItem == null || !canBuy(chr, cItem, cs.getCash(CashShop.NX_PREPAID))) {
                         c.sendPacket(PacketCreator.showCashShopMessage((byte) 0));
                         c.enableCSActions();
                         return;

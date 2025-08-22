@@ -1,5 +1,6 @@
-﻿/logs/**
-.idea/
+/logs/**
+.idea/*
+!.idea/codeStyles/
 *.iml
 *.ipr
 *.iws
@@ -10,6 +11,19 @@
 /build/
 /dist/
 /nbproject/
-
+/.settings
 /out
 *.onetoc2
+
+# Eclipse m2e generated files
+# Eclipse Core
+.project
+# JDT-specific (Eclipse Java Development Tools)
+.classpath
+
+# Database
+database/docker-db-data
+database/docker-pg-db-data
+
+# macOS files
+.DS_Store
